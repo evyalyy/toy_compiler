@@ -1,20 +1,14 @@
 # -*- coding=utf-8 -*-
 
-def remove_comments(code, comment_sym='//'):
-    curr_idx = 0
-    n = len(code)
-    lines = code.split('\n')
+def remove_comments(program_code, comment_sym='//'):
+    lines = program_code.split('\n')
     out_lines = []
-    # print('Preprocessing')
     for line in lines:
         comment_start = line.find(comment_sym)
-        # print('line:','"%s"' % line)
-        # print('Found comment:',comment_start)
         if comment_start < 0:
             out_lines.append(line)
             continue
         line = line[:comment_start]
-        # print('After comment removal:','"%s"' % line)
         out_lines.append(line)
 
     return '\n'.join(out_lines)
@@ -35,8 +29,7 @@ def parse(cmd):
 def preprocess_code(code):
     code = remove_comments(code, '//')
     lines = code.split(';')
-    lines = [s.strip() for s in lines]
-    lines = [s for s in lines if len(s) > 0]
+    lines = [s.strip() for s in lines if len(s.strip()) > 0]
 
     # form map of labels and rows where each label is defined
     # allows to use integer indices for jumps
@@ -49,9 +42,7 @@ def preprocess_code(code):
 
     # replace labels in commands to numbers of corresponding lines
     for i, line in enumerate(lines):
-        parts = line.split(':')
-        for j in range(len(parts)):
-            parts[j] = parts[j].strip()
+        parts = [p.strip() for p in line.split(':')]
         cmd = parts[-1]
         lines[i] = cmd
         cmd_parts = cmd.split(' ')
@@ -61,7 +52,7 @@ def preprocess_code(code):
 
     # parse all commands to command and argument
     for i, line in enumerate(lines):
-        lines[i] = tuple(parse(line))
+        lines[i] = parse(line)
 
     return lines, labels
 
@@ -75,8 +66,7 @@ class StackFrame(object):
         self.mem_end = mem_end if mem_end is not None else mem_start
 
     def __str__(self):
-        s = 'sp=%d; ip=%d; mem:[%d,%d]' % (self.sp, self.ip, self.mem_start, self.mem_end)
-        return s
+        return f'sp={self.sp}; ip={self.ip}; mem:[{self.mem_start},{self.mem_end}]'
 
 
 class VirtualMachine:
@@ -86,14 +76,11 @@ class VirtualMachine:
         self.curr_mem_size = 0
         self.memory = [0] * self.curr_mem_size
 
-        self.default_gmemory_size = 100
-        self.gmemory = [] * self.default_gmemory_size
+        self.INITIAL_STACK_SIZE = 1000
+        self.stack = [0] * self.INITIAL_STACK_SIZE
 
-        self.MAX_STACK_SIZE = 1000
-        self.stack = [0] * self.MAX_STACK_SIZE
-
-        self.fstack = [StackFrame(-1, 0, 0, 0)]
-        self.sframe = self.fstack[-1]
+        self.call_stack = [StackFrame(-1, 0, 0, 0)]
+        self.sframe = self.call_stack[-1]
 
         self.ip = self.sframe.ip
         self.sp = self.sframe.sp
@@ -146,8 +133,6 @@ class VirtualMachine:
 
         arg += self.sframe.mem_start
 
-        if self.sp <= self.sframe.sp:
-            raise IndexError('Stack underflow in STORE')
         if arg < self.sframe.mem_start or arg >= self.sframe.mem_end:
             msg = 'Writing outside memory! '
             msg += 'Requested %d, but memory bounds are ' % arg
@@ -246,16 +231,16 @@ class VirtualMachine:
         self.pop()
 
         sf = StackFrame(self.sp - args_size, self.ip, self.sframe.mem_end)
-        self.fstack.append(sf)
-        self.sframe = self.fstack[-1]
+        self.call_stack.append(sf)
+        self.sframe = self.call_stack[-1]
         self.jump(arg)
 
     def ret(self):
 
         retval = self.top()
-        sf = self.fstack.pop()
+        sf = self.call_stack.pop()
 
-        self.sframe = self.fstack[-1]
+        self.sframe = self.call_stack[-1]
         self.ip = sf.ip
         self.sp = sf.sp
 
@@ -353,7 +338,7 @@ class VirtualMachine:
             print('Full stack:', self.stack[:s_end + 1])
 
             print('Memory stack:')
-            for f in self.fstack[::-1]:
+            for f in self.call_stack[::-1]:
                 print('\t ', f)
         if show_mem:
             print('Memory (size=%d):\n' % (len(self.memory)), self.memory)
