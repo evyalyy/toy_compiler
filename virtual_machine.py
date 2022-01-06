@@ -26,9 +26,9 @@ def parse(cmd):
     return op, arg
 
 
-def preprocess_code(code):
-    code = remove_comments(code, '//')
-    lines = code.split(';')
+def preprocess_code(program_code):
+    program_code = remove_comments(program_code, '//')
+    lines = program_code.split(';')
     lines = [s.strip() for s in lines if len(s.strip()) > 0]
 
     # form map of labels and rows where each label is defined
@@ -50,11 +50,7 @@ def preprocess_code(code):
         if jmp_target in labels:
             lines[i] = cmd.replace(jmp_target, str(labels[jmp_target]))
 
-    # parse all commands to command and argument
-    for i, line in enumerate(lines):
-        lines[i] = parse(line)
-
-    return lines, labels
+    return [parse(line) for line in lines], labels
 
 
 class StackFrame(object):
@@ -71,7 +67,7 @@ class StackFrame(object):
 
 class VirtualMachine:
 
-    def __init__(self):
+    def __init__(self, debug=False):
 
         self.curr_mem_size = 0
         self.memory = [0] * self.curr_mem_size
@@ -80,13 +76,14 @@ class VirtualMachine:
         self.stack = [0] * self.INITIAL_STACK_SIZE
 
         self.call_stack = [StackFrame(-1, 0, 0, 0)]
-        self.sframe = self.call_stack[-1]
+        self.frame = self.call_stack[-1]
 
-        self.ip = self.sframe.ip
-        self.sp = self.sframe.sp
+        self.ip = self.frame.ip
+        self.sp = self.frame.sp
         self.ip_changed = False
+        self.is_stopped = False
 
-        self.code = None
+        self.debug = debug
 
     def nop(self):
         pass
@@ -100,43 +97,40 @@ class VirtualMachine:
     def pop(self):
         # If current SP is equal to current frame SP
         # this means that stack is empty
-        if self.sp <= self.sframe.sp:
+        if self.sp <= self.frame.sp:
             raise IndexError('Stack underflow in POP')
         self.sp -= 1
 
     def top(self):
-        if self.sp <= self.sframe.sp:
+        if self.sp <= self.frame.sp:
             raise IndexError('Stack underflow in TOP')
         return self.stack[self.sp]
 
     def next(self):
-        if self.sp <= self.sframe.sp + 1:
+        if self.sp <= self.frame.sp + 1:
             raise IndexError('Stack underflow in NEXT')
         return self.stack[self.sp - 1]
 
-    def putnext(self):
-        self.push(self.next())
-
     def load(self, arg):
 
-        arg += self.sframe.mem_start
+        arg += self.frame.mem_start
 
-        if arg < self.sframe.mem_start or arg >= self.sframe.mem_end:
+        if arg < self.frame.mem_start or arg >= self.frame.mem_end:
             msg = 'Reading outside memory! '
             msg += 'Requested %d, but memory bounds are ' % arg
-            msg += '[%d; %d]' % (self.sframe.mem_start, self.sframe.mem_end)
+            msg += '[%d; %d]' % (self.frame.mem_start, self.frame.mem_end)
             raise IndexError(msg)
 
         self.push(self.memory[arg])
 
     def store(self, arg):
 
-        arg += self.sframe.mem_start
+        arg += self.frame.mem_start
 
-        if arg < self.sframe.mem_start or arg >= self.sframe.mem_end:
+        if arg < self.frame.mem_start or arg >= self.frame.mem_end:
             msg = 'Writing outside memory! '
             msg += 'Requested %d, but memory bounds are ' % arg
-            msg += '[%d; %d]' % (self.sframe.mem_start, self.sframe.mem_end)
+            msg += '[%d; %d]' % (self.frame.mem_start, self.frame.mem_end)
             raise IndexError(msg)
 
         self.memory[arg] = self.top()
@@ -151,7 +145,7 @@ class VirtualMachine:
         self.push(self.top())
 
     def binary_op_extract_args_(self, _name):
-        if self.sp <= self.sframe.sp + 1:
+        if self.sp <= self.frame.sp + 1:
             raise IndexError('%s requires at least 2 arguments on stack' % _name)
         v2 = self.top()
         self.pop()
@@ -230,49 +224,44 @@ class VirtualMachine:
         args_size = self.top()
         self.pop()
 
-        sf = StackFrame(self.sp - args_size, self.ip, self.sframe.mem_end)
+        sf = StackFrame(self.sp - args_size, self.ip, self.frame.mem_end)
         self.call_stack.append(sf)
-        self.sframe = self.call_stack[-1]
+        self.frame = self.call_stack[-1]
         self.jump(arg)
 
     def ret(self):
 
-        retval = self.top()
+        return_value = self.top()
         sf = self.call_stack.pop()
 
-        self.sframe = self.call_stack[-1]
+        self.frame = self.call_stack[-1]
         self.ip = sf.ip
         self.sp = sf.sp
 
-        self.push(retval)
+        self.push(return_value)
         self.jump(self.ip + 1)
 
     def alloc(self):
         v = self.top()
-        # self.show_(True,True)
         self.pop()
         if v < 0:
             raise ValueError('Invalid argument to alloc:', v)
-        self.sframe.mem_end += v
+        self.frame.mem_end += v
         n = len(self.memory)
-        if n <= self.sframe.mem_end:
-            self.memory += [0] * (self.sframe.mem_end - n)
-        # self.memory += [0]*v
-        # self.curr_mem_size = len(self.memory)
+        if n <= self.frame.mem_end:
+            self.memory += [0] * (self.frame.mem_end - n)
 
     def dealloc(self):
         v = self.top()
         self.pop()
-        curr_msize = self.sframe.mem_end - self.sframe.mem_start
-        if v > curr_msize:
+        curr_memory_size = self.frame.mem_end - self.frame.mem_start
+        if v > curr_memory_size:
             msg = 'Invalid argument to dealloc:'
             msg += ' requested %d but memory bounds are' % v
-            msg += ' [%d;%d]' % (self.sframe.mem_start, self.sframe.mem_end)
+            msg += ' [%d;%d]' % (self.frame.mem_start, self.frame.mem_end)
             raise ValueError(msg)
 
-        self.sframe.mem_end -= v
-        # self.memory = self.memory[:self.curr_mem_size-v]
-        # self.curr_mem_size = len(self.memory)
+        self.frame.mem_end -= v
 
     def halt(self):
         self.is_stopped = True
@@ -286,12 +275,12 @@ class VirtualMachine:
         else:
             fn()
 
-    def run_code(self, code):
+    def run_code(self, program_code):
 
-        lines, labels = preprocess_code(code)
+        lines, labels = preprocess_code(program_code)
         print(lines)
         print(labels)
-        ninstructions = len(lines)
+        num_instructions = len(lines)
 
         self.ip = 0
         self.sp = -1
@@ -301,9 +290,12 @@ class VirtualMachine:
         self.ip_changed = False
         self.is_stopped = False
 
-        while self.ip < ninstructions and not self.is_stopped:
+        while self.ip < num_instructions and not self.is_stopped:
 
             op, arg = lines[self.ip]
+            if self.debug:
+                arg_str = f'({arg})' if arg is not None else ''
+                print(f'Execute {op.upper()}' + arg_str)
 
             self.execute(op, arg)
             if not self.ip_changed:
@@ -317,35 +309,35 @@ class VirtualMachine:
             return
 
         if arg == 1:
-            self.show_(True)
+            self._show_stack()
 
         if arg == 2:
-            self.show_(True, True)
+            self._show_stack()
+            self._show_memory()
 
-    def show_(self, show_stack=False, show_mem=False):
-        if show_stack:
-            s_start = self.sframe.sp
-            s_end = self.sp
-            local_sz = s_end - s_start
+    def _show_stack(self):
+        s_start = self.frame.sp
+        s_end = self.sp
+        local_sz = s_end - s_start
 
-            fmt = 'Stack (sp=%d,sstart=%d,size=%d):\n'
-            stack_str = fmt % (self.sp, s_start, local_sz)
+        stack_str = f'Stack (sp={self.sp}, s_start={s_start}, size={local_sz}):\n'
 
-            disp_stack = self.stack[s_start + 1:s_end + 1]
+        stack_to_show = self.stack[s_start + 1:s_end + 1]
 
-            stack_str += ' ' + str(disp_stack)
-            print(stack_str)
-            print('Full stack:', self.stack[:s_end + 1])
+        stack_str += ' ' + str(stack_to_show)
+        print(stack_str)
+        print('Full stack:', self.stack[:s_end + 1])
 
-            print('Memory stack:')
-            for f in self.call_stack[::-1]:
-                print('\t ', f)
-        if show_mem:
-            print('Memory (size=%d):\n' % (len(self.memory)), self.memory)
-            ms = self.sframe.mem_start
-            me = self.sframe.mem_end
-            n = me - ms
-            print('Local memory (size=%d):\n' % n, self.memory[ms:me])
+        print('Memory stack:')
+        for f in self.call_stack[::-1]:
+            print('\t ', f)
+
+    def _show_memory(self):
+        print(f'Memory (size={len(self.memory)}): {self.memory}\n')
+        ms = self.frame.mem_start
+        me = self.frame.mem_end
+        n = me - ms
+        print(f'Local memory (size={n}): {self.memory[ms:me]}\n')
 
 
 if __name__ == '__main__':
@@ -369,7 +361,7 @@ if __name__ == '__main__':
         ret;
 
     program:
-        push 15; // Put argument on stack
+        push 5; // Put argument on stack
         push 1;
         // Fact procedure takes one argument <5>
         call fact;
@@ -415,12 +407,12 @@ if __name__ == '__main__':
     #     halt;
     # '''
 
-    vm = VirtualMachine()
+    vm = VirtualMachine(debug=True)
 
     vm.run_code(code)
 
     print('After execution:')
-    vm.show_(True, True)
+    vm.show(2)
 
     unused = '''
            PUSH 9;
