@@ -1,10 +1,10 @@
 
-class Token(object):
+class Token:
 
     # NUM, ID, IF, ELSE, WHILE, DO, LBRA, RBRA, LPAR, RPAR, PLUS, MINUS, LESS, \
     # EQUAL, SEMICOLON, EOF = range(16)
 
-    def __init__(self,lexeme=None,tp=None,value=None):
+    def __init__(self, lexeme=None, tp=None, value=None):
         self.lexeme = lexeme
         self.type = tp
         self.value = value
@@ -14,11 +14,10 @@ class Token(object):
 
     def __str__(self):
         v = str(self.value) if self.value is not None else 'None'
-        return '(\"%s\",%s,%s)' % (self.lexeme,self.type,v)
+        return '(\"%s\",%s,%s)' % (self.lexeme, self.type, v)
 
 
-def preprocess(code,comment_sym='//'):
-
+def preprocess(code, comment_sym='//'):
     curr_idx = 0
     n = len(code)
     lines = code.split('\n')
@@ -41,18 +40,15 @@ def preprocess(code,comment_sym='//'):
 
 
 class Lexer:
+    keywords = ['if', 'else', 'while', 'break', 'continue', 'var', 'func', 'entry', 'return']
 
-
-    keywords = ['if','else','while','break','continue',\
-                'var','func','entry','return']
-
-    op_map = {'+':'plus','-':'minus','=':'assign','*':'multiply','/':'divide'}
+    op_map = {'+': 'plus', '-': 'minus', '=': 'assign', '*': 'multiply', '/': 'divide'}
     op_map['<'] = 'less'
     op_map['>'] = 'greater'
     op_map['=='] = 'equal'
     op_map['!='] = 'notequal'
 
-    def __init__(self,symtable = None):
+    def __init__(self, symtable=None):
 
         # self.symtable = symtable
         self.lex_begin = 0
@@ -61,29 +57,31 @@ class Lexer:
 
         self.state = 0
 
-        setattr(self,'test_semicolon',lambda : self._test_one_sym(';'))
-        setattr(self,'test_colon',lambda : self._test_one_sym(','))
+        self.curr_line_no = 0
+        self.last_newline = None
 
-        setattr(self,'test_lcurv',lambda : self._test_one_sym('{'))
-        setattr(self,'test_rcurv',lambda : self._test_one_sym('}'))
+        setattr(self, 'test_semicolon', lambda: self._test_one_sym(';'))
+        setattr(self, 'test_colon', lambda: self._test_one_sym(','))
 
-        setattr(self,'test_lsquare',lambda : self._test_one_sym('['))
-        setattr(self,'test_rsquare',lambda : self._test_one_sym(']'))
+        setattr(self, 'test_lcurv', lambda: self._test_one_sym('{'))
+        setattr(self, 'test_rcurv', lambda: self._test_one_sym('}'))
 
-        setattr(self,'test_lparen',lambda : self._test_one_sym('('))
-        setattr(self,'test_rparen',lambda : self._test_one_sym(')'))
+        setattr(self, 'test_lsquare', lambda: self._test_one_sym('['))
+        setattr(self, 'test_rsquare', lambda: self._test_one_sym(']'))
 
-        setattr(self,'test_star',lambda : self._test_one_sym('*'))
+        setattr(self, 'test_lparen', lambda: self._test_one_sym('('))
+        setattr(self, 'test_rparen', lambda: self._test_one_sym(')'))
 
+        setattr(self, 'test_star', lambda: self._test_one_sym('*'))
 
-    def move_adv(self,st):
+    def move_adv(self, st):
         self.state = st
         self.curr_pos += 1
 
     def adv(self):
         self.curr_pos += 1
 
-    def _test_one_sym(self,sym):
+    def _test_one_sym(self, sym):
         c = self.code[self.curr_pos]
         if c == sym:
             self.adv()
@@ -91,14 +89,13 @@ class Lexer:
         else:
             return False
 
-
     def test_id(self):
-        
+
         self.state = 0
         code_len = len(self.code)
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
-            
+
             if self.state == 0:
                 if c.isalpha() or c == '_':
                     self.move_adv(1)
@@ -137,12 +134,12 @@ class Lexer:
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
             if self.state == 0:
-                if c in [' ','\n','\t']:
+                if c in [' ', '\n', '\t']:
                     self.move_adv(1)
                     continue
                 return False
             if self.state == 1:
-                if c in [' ','\n','\t']:
+                if c in [' ', '\n', '\t']:
                     self.adv()
                     continue
 
@@ -154,7 +151,7 @@ class Lexer:
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
             if self.state == 0:
-                if c in ['=','+','-','<','>','*','!']:
+                if c in ['=', '+', '-', '<', '>', '*', '!']:
                     self.move_adv(1)
                     continue
                 return False
@@ -167,11 +164,10 @@ class Lexer:
     def get_lexeme(self):
         return self.code[self.lex_begin:self.curr_pos]
 
-    
-    def analyze(self,code):
+    def analyze(self, code):
 
-        self.code = preprocess(code,'#')
-        self.code = preprocess(self.code,'//')
+        self.code = preprocess(code, '#')
+        self.code = preprocess(self.code, '//')
         self.lex_begin = 0
         self.curr_pos = 0
 
@@ -184,15 +180,15 @@ class Lexer:
 
             # print('On pos:',self.curr_pos)
             # print('Context:',code[self.curr_pos-10:self.curr_pos+10])
-            
-            for i,t in enumerate(tests):
-    
+
+            for i, t in enumerate(tests):
+
                 # print('Testing',t)
-                ret = getattr(self,t)()
+                ret = getattr(self, t)()
                 if not ret:
                     continue
 
-                tname = t.replace('test_','')
+                tname = t.replace('test_', '')
                 lexeme = self.get_lexeme()
 
                 self.lex_begin = self.curr_pos
@@ -206,8 +202,7 @@ class Lexer:
                     #     print(self.curr_line_no,self.last_newline,s)
                     continue
 
-
-                tok = Token(lexeme,tname)
+                tok = Token(lexeme, tname)
                 if tname == 'number':
                     tok.value = int(lexeme)
                 if tname == 'id':
@@ -220,22 +215,19 @@ class Lexer:
                 # tok = (lexeme,tname)
 
                 tokens.append(tok)
-               
 
-        return tokens          
-
+        return tokens
 
 
 if __name__ == '__main__':
 
-    code = \
-'''
+    code = '''
 10 + 10
 // foo + bar
 int x = 10;// this is a comment
 '''
 
-    lex = Lexer() 
+    lex = Lexer()
     tokens = lex.analyze(code)
 
     for t in tokens:
