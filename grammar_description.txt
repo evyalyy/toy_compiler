@@ -1,0 +1,68 @@
+program = code_block , '$'
+
+code_block = '{' , statement_list , '}'
+
+statement_list = statement , statement_list | e
+
+statement = variable_declaration , ';'
+          | function_definition
+          | expression , ';' 
+          | if_statement
+          | while_loop_statement
+          | 'break' , ';'
+          | 'continue' , ';'
+          | 'return' , expression , ';'
+          | code_block
+
+if_statement = 'if','(',expression,')',code_block
+
+while_loop_statement = 'while','(',expression,')',code_block
+
+
+variable_declaration = 'var' , 'id' , 'id' , initializer
+initializer = '=' , expression | e
+
+function_definition = 'func' , 'id' , 'id' , '(' , arg_list_def , ')' , code_block
+
+arg_list_def  = arg , arg_list_def_rest
+              | e
+
+arg_list_def_rest = 'comma' , arg , arg_list_def_rest
+                  | e
+arg = 'id' , 'id'
+
+expression = assignment_expr
+
+assignment_expr     =       comparison , assignment_expr_rhs
+assignment_expr_rhs = '=' , comparison , assignment_expr_rhs
+                    | e
+
+comparison     =          additive_expr , comparison_rhs
+comparison_rhs = cmp_op , additive_expr , comparison_rhs
+               | e
+               
+cmp_op = '<' | '>' | '==' | '!='
+
+
+additive_expr     =       multiplicative_expr , additive_expr_rhs       
+additive_expr_rhs = '+' , multiplicative_expr , additive_expr_rhs
+                  | '-' , multiplicative_expr , additive_expr_rhs
+                  | e
+
+multiplicative_expr     =       postfix_expression , multiplicative_expr_rhs
+multiplicative_expr_rhs = '*' , postfix_expression , multiplicative_expr_rhs
+                        | '/' , postfix_expression , multiplicative_expr_rhs
+                        | e
+
+postfix_expression      =     primary_expression , postfix_expression_rest
+postfix_expression_rest = '[' , expression , ']' , postfix_expression_rest
+                        | '(' , arg_list , ')'   , postfix_expression_rest
+                        | e
+
+primary_expression = 'number'
+                   | 'id' 
+                   | '(' , expression , ')'
+                   | '*' , postfix_expression
+
+arg_list      =           expression , arg_list_rest | e
+arg_list_rest = 'comma' , expression , arg_list_rest | e
