@@ -1,3 +1,5 @@
+from preprocessing import remove_comments
+
 
 class Token:
 
@@ -17,40 +19,14 @@ class Token:
         return '(\"%s\",%s,%s)' % (self.lexeme, self.type, v)
 
 
-def preprocess(code, comment_sym='//'):
-    curr_idx = 0
-    n = len(code)
-    lines = code.split('\n')
-    # print(lines)
-    out_lines = []
-    # print('Preprocessing')
-    for line in lines:
-        comment_start = line.find(comment_sym)
-        # print('line:','"%s"' % line)
-        # print('Found comment:',comment_start)
-        if comment_start < 0:
-            out_lines.append(line)
-            continue
-        line = line[:comment_start]
-        # print('After comment removal:','"%s"' % line)
-        out_lines.append(line)
-
-    # print(out_lines)
-    return '\n'.join(out_lines)
-
-
 class Lexer:
     keywords = ['if', 'else', 'while', 'break', 'continue', 'var', 'func', 'entry', 'return']
 
-    op_map = {'+': 'plus', '-': 'minus', '=': 'assign', '*': 'multiply', '/': 'divide'}
-    op_map['<'] = 'less'
-    op_map['>'] = 'greater'
-    op_map['=='] = 'equal'
-    op_map['!='] = 'notequal'
+    op_map = {'+': 'plus', '-': 'minus', '=': 'assign', '*': 'multiply', '/': 'divide', '<': 'less', '>': 'greater',
+              '==': 'equal', '!=': 'notequal'}
 
-    def __init__(self, symtable=None):
+    def __init__(self):
 
-        # self.symtable = symtable
         self.lex_begin = 0
         self.curr_pos = 0
         self.code = ''
@@ -166,8 +142,8 @@ class Lexer:
 
     def analyze(self, code):
 
-        self.code = preprocess(code, '#')
-        self.code = preprocess(self.code, '//')
+        self.code = remove_comments(code, '#')
+        self.code = remove_comments(self.code, '//')
         self.lex_begin = 0
         self.curr_pos = 0
 
@@ -188,13 +164,13 @@ class Lexer:
                 if not ret:
                     continue
 
-                tname = t.replace('test_', '')
+                token_name = t.replace('test_', '')
                 lexeme = self.get_lexeme()
 
                 self.lex_begin = self.curr_pos
 
-                if tname == 'whitespace':
-                    # print(tname,'"%s"' % lexeme)
+                if token_name == 'whitespace':
+                    # print(token_name,'"%s"' % lexeme)
                     # if '\n' in lexeme:
                     #     self.curr_line_no += 1
                     #     self.last_newline = self.curr_pos
@@ -202,33 +178,31 @@ class Lexer:
                     #     print(self.curr_line_no,self.last_newline,s)
                     continue
 
-                tok = Token(lexeme, tname)
-                if tname == 'number':
-                    tok.value = int(lexeme)
-                if tname == 'id':
+                token = Token(lexeme, token_name)
+                if token_name == 'number':
+                    token.value = int(lexeme)
+                if token_name == 'id':
                     if lexeme in Lexer.keywords:
-                        tok.type = lexeme
+                        token.type = lexeme
 
-                if tname == 'operator':
-                    tok.type = Lexer.op_map[lexeme]
+                if token_name == 'operator':
+                    token.type = Lexer.op_map[lexeme]
 
-                # tok = (lexeme,tname)
-
-                tokens.append(tok)
+                tokens.append(token)
 
         return tokens
 
 
 if __name__ == '__main__':
 
-    code = '''
+    source_code = '''
 10 + 10
 // foo + bar
 int x = 10;// this is a comment
 '''
 
     lex = Lexer()
-    tokens = lex.analyze(code)
+    parsed_tokens = lex.analyze(source_code)
 
-    for t in tokens:
-        print(t)
+    for tok in parsed_tokens:
+        print(tok)
