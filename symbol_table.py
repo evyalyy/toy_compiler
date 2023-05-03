@@ -14,7 +14,6 @@ class SymbolId(Symbol):
     def __init__(self, _name, tp, address):
         super().__init__(_name)
         self.symbol_type = Symbol.Id
-        # self.name = _name
         self.type = tp
         self.address = address
 
@@ -119,8 +118,8 @@ if __name__ == '__main__':
         table.add(SymbolId('x', itype, 0))
         table.add(SymbolId('y', btype, 1))
 
-        # print(table.find('x'))
-        # print(table.find('y'))
+        print(table.find('x'))
+        print(table.find('y'))
 
         block = SymbolTable(table)
 
@@ -129,7 +128,7 @@ if __name__ == '__main__':
         s = block.find('x')
         s.value = 100
 
-        # print(block.find('x'))
+        print(block.find('x'))
 
         args = [(itype, 'a1'), (ftype, 'a2')]
 
