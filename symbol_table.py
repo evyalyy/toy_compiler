@@ -14,14 +14,11 @@ class SymbolId(Symbol):
     def __init__(self, _name, tp, address):
         super().__init__(_name)
         self.symbol_type = Symbol.Id
-        # self.name = _name
         self.type = tp
         self.address = address
 
     def __str__(self):
-        fmt = 'SymbolId: <%s> of type <%s> at %s'
-        s = fmt % (self.name, self.type.name, str(self.address))
-        return s
+        return f'SymbolId: <{self.name}> of type <{self.type.name}> at {self.address}'
 
 
 class SymbolType(Symbol):
@@ -31,8 +28,7 @@ class SymbolType(Symbol):
         self.size = _size
 
     def __str__(self):
-        s = 'SymbolType: <%s> of size %d' % (self.name, self.size)
-        return s
+        return f'SymbolType: <{self.name}> of size {self.size}'
 
 
 class SymbolPointer(SymbolType):
@@ -42,16 +38,15 @@ class SymbolPointer(SymbolType):
         self.base_type = base_type
 
     def __str__(self):
-        s = 'SymbolPointer: to type <%s>' % (self.base_type.name)
-        return s
+        return f'SymbolPointer: to type <{self.base_type.name}>'
 
 
 class SymbolFunction(Symbol):
     def __init__(self, _name, _ret_type, args):
-        '''
+        """
          args = [(type_symbol,name),(type_symbol,name)...]
          e.g. args = [SymbolType('int',1),'arg1',SymbolType('float',4),'arg2']
-        '''
+        """
         super().__init__(_name)
         self.symbol_type = Symbol.Function
 
@@ -65,9 +60,8 @@ class SymbolFunction(Symbol):
             self.args_size = sum(map(lambda arg: arg[0].size, self.args))
 
     def __str__(self):
-        args_str = ','.join(map(lambda arg: '%s %s' % (arg[0].name, arg[1]), self.args))
-        s = 'SymbolFunction: %s %s(%s)' % (self.ret_type.name, self.name, args_str)
-        return s
+        args_str = ','.join(map(lambda arg: f'{arg[0].name} {arg[1]}', self.args))
+        return f'SymbolFunction: {self.ret_type.name} {self.name}({args_str})'
 
 
 class SymbolTable:
@@ -79,17 +73,17 @@ class SymbolTable:
 
     def find(self, name):
 
-        ctable = self
-        while ctable is not None:
-            if name in ctable.table:
-                return ctable.table[name]
+        curr_table = self
+        while curr_table is not None:
+            if name in curr_table.table:
+                return curr_table.table[name]
 
-            ctable = ctable.parent
+            curr_table = curr_table.parent
         return None
 
     def add(self, sym):
 
-        if not sym.name in self.table:
+        if sym.name not in self.table:
             self.table[sym.name] = sym
             return self.table[sym.name]
         else:
@@ -111,32 +105,34 @@ class SymbolTable:
 
 
 if __name__ == '__main__':
-    table = SymbolTable()
-    table.add(SymbolType('int', 4))
-    table.add(SymbolType('bool', 1))
-    table.add(SymbolType('float', 1))
+    def test():
+        table = SymbolTable()
+        table.add(SymbolType('int', 4))
+        table.add(SymbolType('bool', 1))
+        table.add(SymbolType('float', 1))
 
-    itype = table.find('int')
-    btype = table.find('bool')
-    ftype = table.find('float')
+        itype = table.find('int')
+        btype = table.find('bool')
+        ftype = table.find('float')
 
-    table.add(SymbolId('x', itype, 0))
-    table.add(SymbolId('y', btype, 1))
+        table.add(SymbolId('x', itype, 0))
+        table.add(SymbolId('y', btype, 1))
 
-    # print(table.find('x'))
-    # print(table.find('y'))
+        print(table.find('x'))
+        print(table.find('y'))
 
-    block = SymbolTable(table)
+        block = SymbolTable(table)
 
-    block.add(SymbolId('x', ftype, 2))
+        block.add(SymbolId('x', ftype, 2))
 
-    s = block.find('x')
-    s.value = 100
+        s = block.find('x')
+        s.value = 100
 
-    # print(block.find('x'))
+        print(block.find('x'))
 
-    args = [(itype, 'a1'), (ftype, 'a2')]
+        args = [(itype, 'a1'), (ftype, 'a2')]
 
-    table.add(SymbolFunction('foo', itype, args))
+        table.add(SymbolFunction('foo', itype, args))
 
-    print(block.show())
+        print(block.show())
+    test()

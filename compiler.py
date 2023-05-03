@@ -2,9 +2,7 @@ from my_lexer import Lexer
 from my_parser import Parser, print_ast
 from virtual_machine import VirtualMachine
 
-
 if __name__ == '__main__':
-
     code = '''
     {
        func int foo(int x){
@@ -21,22 +19,22 @@ if __name__ == '__main__':
        //func int bar(){
        // var float x = 0;
        //}
-        # var int n = 9;
-        # var int prev1 = 1;
-        # var int prev2 = 1;
-        # while(n > 2){
-        #     var int tmp = prev1;
-        #     prev1 = prev1 + prev2;
-        #     prev2 = tmp;
-        #     n = n - 1;
-        # }
+        // var int n = 9;
+        // var int prev1 = 1;
+        // var int prev2 = 1;
+        // while(n > 2){
+        //     var int tmp = prev1;
+        //     prev1 = prev1 + prev2;
+        //     prev2 = tmp;
+        //     n = n - 1;
+        // }
 
-       # var int n = 5;
-       # var int result = 1;
-       # while(n > 0){
-       #      result = result * n;
-       #      n = n - 1;
-       # }
+       // var int n = 5;
+       // var int result = 1;
+       // while(n > 0){
+       //      result = result * n;
+       //      n = n - 1;
+       // }
     }
     '''
 
@@ -52,7 +50,7 @@ if __name__ == '__main__':
     cmd_list = ast.emit()
 
     code = ';\n'.join(cmd_list) + ';\nhalt;'
-    code = code.replace(':;',':')
+    code = code.replace(':;', ':')
     print(code)
 
     vm = VirtualMachine()

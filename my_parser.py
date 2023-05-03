@@ -46,11 +46,11 @@ class ASTNode:
         self.parent = parent
         self.children = []
 
-    def addChildLeft(self, node):
+    def add_child_left(self, node):
         node.parent = self
         self.children.insert(0, node)
 
-    def addChild(self, node):
+    def add_child(self, node):
         node.parent = self
         self.children.append(node)
 
@@ -80,11 +80,8 @@ class ASTExpr(ASTNode):
     def emit(self):
 
         print('Expression', self.op)
-        binary_op_map = {'plus': 'add', 'minus': 'sub', 'multiply': 'mul', 'divide': 'div'}
-        binary_op_map['less'] = 'lt'
-        binary_op_map['greater'] = 'gt'
-        binary_op_map['equal'] = 'eq'
-        binary_op_map['notequal'] = 'neq'
+        binary_op_map = {'plus': 'add', 'minus': 'sub', 'multiply': 'mul', 'divide': 'div', 'less': 'lt',
+                         'greater': 'gt', 'equal': 'eq', 'notequal': 'neq'}
 
         if self.op in binary_op_map:
             get_op1 = self.children[0].emit()
@@ -135,9 +132,7 @@ class ASTDeclaration(ASTNode):
         self.name = var_sym
 
     def emit(self):
-        out = []
-        out.append('push %d' % self.tp.size)
-        out.append('alloc')
+        out = ['push %d' % self.tp.size, 'alloc']
 
         self.name.address = self.parent.curr_mem_idx
         self.parent.curr_mem_idx += self.tp.size
@@ -158,9 +153,11 @@ class ASTIfStatement(ASTNode):
 
     def emit(self):
         out = []
-        if len(self.children) > 1:
-            condition = self.children[0]
-            body = self.children[1]
+        if len(self.children) < 2:
+            raise CompileError('Too few children for `if` statement')
+
+        condition = self.children[0]
+        body = self.children[1]
 
         cond_cmd = condition.emit()
         body_cmd = body.emit()
@@ -184,9 +181,11 @@ class ASTWhileStatement(ASTNode):
 
     def emit(self):
         out = []
-        if len(self.children) > 1:
-            condition = self.children[0]
-            body = self.children[1]
+        if len(self.children) < 2:
+            raise CompileError('Too few children for `while` statement')
+
+        condition = self.children[0]
+        body = self.children[1]
 
         cond_cmd = condition.emit()
         body_cmd = body.emit()
@@ -392,12 +391,14 @@ def print_ast(root, lvl=0):
 
 class Parser:
 
-    def __init__(self, tokens=[]):
+    def __init__(self, tokens=None):
         self.curr_sym = None
         self.idx = -1
 
         self.tokens = tokens
-        self.ntokens = len(self.tokens)
+        if tokens is None:
+            self.tokens = []
+        self.num_tokens = len(self.tokens)
 
         self.curr_label_id = 0
 
@@ -419,7 +420,7 @@ class Parser:
         # raise SyntaxError('Unexpected token %s at position %d' % (self.sym(),self.idx))
 
     def eof(self):
-        return self.idx == self.ntokens
+        return self.idx == self.num_tokens
 
     def sym(self):
         return self.curr_sym
@@ -475,7 +476,7 @@ class Parser:
 
         curr_node = ASTCodeBlock(self.symtable)
         for stmt in stmt_nodes:
-            curr_node.addChild(stmt)
+            curr_node.add_child(stmt)
 
         if self.symtable.parent:
             self.symtable = self.symtable.parent
@@ -487,12 +488,12 @@ class Parser:
     def statement_list(self):
 
         # FIRST(statement)
-        possible_toks = ['lparen', 'var', 'func', 'return', 'if', 'lcurv', \
-                         'id', 'while', 'continue', 'break', 'number', 'entry']
+        possible_tokens = ['lparen', 'var', 'func', 'return', 'if', 'lcurv',
+                           'id', 'while', 'continue', 'break', 'number', 'entry']
 
         print('Current symbol:', self.sym())
         nodes = []
-        if self.expect_many(possible_toks):
+        if self.expect_many(possible_tokens):
             curr_node = self.statement()
 
             nodes.append(curr_node)
@@ -554,13 +555,13 @@ class Parser:
         expr = self.expression()
         self.match('semicolon')
         s = ASTReturnStatement()
-        s.addChild(expr)
+        s.add_child(expr)
         return s
 
     def function_definition(self):
         self.match('func')
-        ret_type = self.identifierType()
-        func_name = self.getName()
+        ret_type = self.identifier_type()
+        func_name = self.get_name()
         self.match('lparen')
         arg_list = self.func_arg_list_def()
         self.match('rparen')
@@ -577,7 +578,7 @@ class Parser:
             f.symtable.add(var)
 
         func_body = self.code_block()
-        f.addChild(func_body)
+        f.add_child(func_body)
 
         self.symtable = self.symtable.parent
 
@@ -596,6 +597,7 @@ class Parser:
     def func_arg_list_def_rest(self):
         out = []
         if self.expect('comma', True):
+            # TODO: function calls?
             arg_tuple = self.func_arg()
             out += self.func_arg_list_def_rest()
 
@@ -604,9 +606,9 @@ class Parser:
 
     def func_arg(self):
 
-        arg_type = self.identifierType()
-        arg_name = self.getName()
-        return (arg_type, arg_name)
+        arg_type = self.identifier_type()
+        arg_name = self.get_name()
+        return arg_type, arg_name
 
     def if_statement(self):
         self.match('if')
@@ -617,8 +619,8 @@ class Parser:
 
         self.curr_label_id += 1
         stmt = ASTIfStatement(self.curr_label_id)
-        stmt.addChild(cond_expr)
-        stmt.addChild(body)
+        stmt.add_child(cond_expr)
+        stmt.add_child(body)
         return stmt
 
     def while_statement(self):
@@ -630,8 +632,8 @@ class Parser:
 
         self.curr_label_id += 1
         w = ASTWhileStatement(self.curr_label_id)
-        w.addChild(cond_expr)
-        w.addChild(body)
+        w.add_child(cond_expr)
+        w.add_child(body)
         return w
 
     def continue_statement(self):
@@ -645,14 +647,14 @@ class Parser:
     def variable_declaration(self):
 
         self.match('var')
-        tp_node = self.identifierType()
-        var_node = self.identifierVar(tp_node)
+        tp_node = self.identifier_type()
+        var_node = self.identifier_var(tp_node)
 
         decl_node = ASTDeclaration(tp_node, var_node)
 
         if self.expect('assign', True):
             expr = self.expression()
-            decl_node.addChild(expr)
+            decl_node.add_child(expr)
 
         return decl_node
 
@@ -670,8 +672,8 @@ class Parser:
         if self.expect('assign', True):
             rhs = self.comparison()
             node = ASTExpr('assign')
-            node.addChild(lhs)
-            node.addChild(rhs)
+            node.add_child(lhs)
+            node.add_child(rhs)
             return self.assignment_expr_rhs(node)
 
         # Do nothing for epsilon production
@@ -689,8 +691,8 @@ class Parser:
             self.advance()
             rhs = self.additive_expr()
             node = ASTExpr(op)
-            node.addChild(lhs)
-            node.addChild(rhs)
+            node.add_child(lhs)
+            node.add_child(rhs)
             return self.comparison_rhs(node)
 
         # Do nothing for epsilon production
@@ -706,15 +708,15 @@ class Parser:
         if self.expect('plus', True):
             rhs = self.multiplicative_expr()
             curr_node = ASTExpr('plus')
-            curr_node.addChild(lhs)
-            curr_node.addChild(rhs)
+            curr_node.add_child(lhs)
+            curr_node.add_child(rhs)
             return self.additive_expr_rhs(curr_node)
 
         if self.expect('minus', True):
             rhs = self.multiplicative_expr()
             curr_node = ASTExpr('minus')
-            curr_node.addChild(lhs)
-            curr_node.addChild(rhs)
+            curr_node.add_child(lhs)
+            curr_node.add_child(rhs)
             return self.additive_expr_rhs(curr_node)
 
         # Do nothing for epsilon production
@@ -730,15 +732,15 @@ class Parser:
         if self.expect('multiply', True):
             rhs = self.postfix_expression()
             curr_node = ASTExpr('multiply')
-            curr_node.addChild(lhs)
-            curr_node.addChild(rhs)
+            curr_node.add_child(lhs)
+            curr_node.add_child(rhs)
             return self.multiplicative_expr_rhs(curr_node)
 
         if self.expect('divide', True):
             rhs = self.postfix_expression()
             curr_node = ASTExpr('divide')
-            curr_node.addChild(lhs)
-            curr_node.addChild(rhs)
+            curr_node.add_child(lhs)
+            curr_node.add_child(rhs)
             return self.multiplicative_expr_rhs(curr_node)
 
         # Do nothing for epsilon production
@@ -776,7 +778,7 @@ class Parser:
 
             arg_list = self.func_call_arg_list()
             for arg in arg_list:
-                lhs.addChild(arg)
+                lhs.add_child(arg)
 
             self.match('rparen')
             return lhs
@@ -784,7 +786,8 @@ class Parser:
         if self.expect('lsquare'):
             raise NotImplementedError('Array subscript not implemented')
 
-            self.match('rsquare')
+            # TODO: arrays?
+            # self.match('rsquare')
 
         # Do nothing for epsilon production
         return lhs
@@ -818,10 +821,10 @@ class Parser:
 
         return curr_node
 
-    def getName(self):
-        '''
+    def get_name(self):
+        """
         TODO: add check that there is no type with such name (or variable, or function)
-        '''
+        """
         n = self.sym().lexeme
         _s = self.symtable.find(n)
         if _s:
@@ -829,7 +832,7 @@ class Parser:
         self.advance()
         return n
 
-    def identifierType(self):
+    def identifier_type(self):
 
         tp_name = self.sym().lexeme
 
@@ -841,7 +844,7 @@ class Parser:
 
         return tp_entry
 
-    def identifierVar(self, tp):
+    def identifier_var(self, tp):
         var_name = self.sym().lexeme
         print('Variable name: "%s"' % var_name)
         print(tp)
