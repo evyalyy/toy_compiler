@@ -1,9 +1,9 @@
 class Symbol:
-    Id, Type, Function, Pointer = 0, 1, 2, 3
+    Id, Type, Function = 0, 1, 2
 
-    def __init__(self, _name):
+    def __init__(self, _name, tp):
         self.name = _name
-        self.symbol_type = None
+        self.symbol_type = tp
 
     def __str__(self):
         raise NotImplementedError()
@@ -12,8 +12,7 @@ class Symbol:
 class SymbolId(Symbol):
 
     def __init__(self, _name, tp, address):
-        super().__init__(_name)
-        self.symbol_type = Symbol.Id
+        super().__init__(_name, Symbol.Id)
         self.type = tp
         self.address = address
 
@@ -23,22 +22,10 @@ class SymbolId(Symbol):
 
 class SymbolType(Symbol):
     def __init__(self, _name, _size):
-        super().__init__(_name)
-        self.symbol_type = Symbol.Type
-        self.size = _size
+        super().__init__(_name, Symbol.Type)
 
     def __str__(self):
-        return f'SymbolType: <{self.name}> of size {self.size}'
-
-
-class SymbolPointer(SymbolType):
-    def __init__(self, base_type):
-        super().__init__(base_type.name + '*', 1)
-        self.symbol_type = Symbol.Pointer
-        self.base_type = base_type
-
-    def __str__(self):
-        return f'SymbolPointer: to type <{self.base_type.name}>'
+        return f'SymbolType: <{self.name}>'
 
 
 class SymbolFunction(Symbol):
@@ -47,17 +34,13 @@ class SymbolFunction(Symbol):
          args = [(type_symbol,name),(type_symbol,name)...]
          e.g. args = [SymbolType('int',1),'arg1',SymbolType('float',4),'arg2']
         """
-        super().__init__(_name)
-        self.symbol_type = Symbol.Function
+        super().__init__(_name, Symbol.Function)
 
         self.ret_type = _ret_type
 
         self.args = args
+        self.args_size = len(self.args)
         self.label = 'func_%s' % _name
-
-        self.args_size = 0
-        if len(self.args) > 0:
-            self.args_size = sum(map(lambda arg: arg[0].size, self.args))
 
     def __str__(self):
         args_str = ','.join(map(lambda arg: f'{arg[0].name} {arg[1]}', self.args))

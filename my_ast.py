@@ -98,11 +98,11 @@ class ASTDeclaration(ASTNode):
         v.visit_declaration(self)
 
     def emit(self):
-        out = ['push %d' % self.tp.size, 'alloc']
+        out = ['push 1', 'alloc']
 
         self.name.address = self.parent.curr_mem_idx
-        self.parent.curr_mem_idx += self.tp.size
-        self.parent.memory_size += self.tp.size
+        self.parent.curr_mem_idx += 1
+        self.parent.memory_size += 1
 
         if len(self.children) > 0:
             out += self.children[0].emit()
@@ -283,14 +283,14 @@ class ASTFunctionDefinition(ASTNode):
         for tp, name in self.func_symbol.args:
             var = self.symtable.find(name)
             var.address = self.curr_mem_idx
-            self.curr_mem_idx += tp.size
-            self.memory_size += tp.size
+            self.curr_mem_idx += 1
+            self.memory_size += 1
 
         label = self.func_symbol.label
         out.append(label + ':')
         for tp, name in self.func_symbol.args[::-1]:
             var = self.symtable.find(name)
-            out.append('push %d' % var.type.size)
+            out.append('push 1')
             out.append('alloc')
             out.append('store %d' % var.address)
 

@@ -221,7 +221,7 @@ class Parser:
         _func = SymbolFunction(func_name, ret_type, arg_list)
         f_sym = self.symtable.add(_func)
 
-        f = ASTFunctionDefinition(f_sym)
+        f = ASTFunctionDefinition(f_sym, func_name, ret_type, arg_list)
         f.symtable = SymbolTable(self.symtable)
         self.symtable = f.symtable
 
@@ -454,7 +454,7 @@ class Parser:
             return ASTNumber(s.value)
 
         if self.expect(TokenType.ID, True):
-            print('Identifier')
+            print('Identifier', s.lexeme)
             var_entry = self.symtable.find(s.lexeme)
             print(s, var_entry)
             is_id_or_func = var_entry.symbol_type in [Symbol.Id, Symbol.Function]
@@ -463,9 +463,9 @@ class Parser:
             if self.expect(TokenType.LEFT_PARENTHESIS):
                 if var_entry.symbol_type != Symbol.Function:
                     raise CompileError(f'Expected function call, but got different kind of symbol: {var_entry}')
-                return ASTFunctionCall(var_entry)
+                return ASTFunctionCall(var_entry, s.lexeme)
 
-            return ASTId(var_entry)
+            return ASTId(var_entry, s.lexeme)
 
         self.match(TokenType.LEFT_PARENTHESIS)
         curr_node = self.expression()
