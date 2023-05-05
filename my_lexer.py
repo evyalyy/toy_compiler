@@ -121,7 +121,11 @@ class Lexer:
         self.curr_pos += 1
 
     def regex_test(self, pattern: re.Pattern, use_eol=True):
-        eol = self.code.find('\n', self.curr_pos) if use_eol else len(self.code)
+        eol = len(self.code)
+        if use_eol:
+            next_newline = self.code.find('\n', self.curr_pos)
+            if next_newline != -1:
+                eol = next_newline
         m = pattern.match(self.code, self.curr_pos, eol)
         if m:
             for i in range(m.end()-m.start()):
