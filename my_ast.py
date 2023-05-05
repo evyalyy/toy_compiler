@@ -1,23 +1,7 @@
 from my_lexer import TokenType
 from errors import CompileError, InvalidReturnError, LoopError
-
-
-class ASTNode:
-
-    def __init__(self, parent=None):
-        self.parent = parent
-        self.children = []
-
-    def add_child_left(self, node):
-        node.parent = self
-        self.children.insert(0, node)
-
-    def add_child(self, node):
-        node.parent = self
-        self.children.append(node)
-
-    def emit(self):
-        raise NotImplementedError()
+from ast_node import ASTNode
+from ast_visitor import AstVisitor
 
 
 def find_parent_node(node, tp_list):
@@ -43,6 +27,9 @@ class ASTExpr(ASTNode):
         super().__init__(parent)
         self.op = op
 
+    def accept(self, v: AstVisitor):
+        v.visit_expr(self)
+
     def emit(self):
 
         print('Expression', self.op)
@@ -64,6 +51,9 @@ class ASTEntryPoint(ASTNode):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def accept(self, v: AstVisitor):
+        v.visit_entry_point(self)
+
     def emit(self):
         return ['program:']
 
@@ -74,16 +64,23 @@ class ASTNumber(ASTNode):
 
         self.value = value
 
+    def accept(self, v: AstVisitor):
+        v.visit_num(self)
+
     def emit(self):
         out = ['push %d' % self.value]
         return out
 
 
 class ASTId(ASTNode):
-    def __init__(self, symbol, parent=None):
+    def __init__(self, symbol, name, parent=None):
         super().__init__(parent)
 
         self.symbol = symbol
+        self.name = name
+
+    def accept(self, v: AstVisitor):
+        v.visit_id(self)
 
     def emit(self):
         addr = self.symbol.address
@@ -96,6 +93,9 @@ class ASTDeclaration(ASTNode):
 
         self.tp = tp_sym
         self.name = var_sym
+
+    def accept(self, v: AstVisitor):
+        v.visit_declaration(self)
 
     def emit(self):
         out = ['push %d' % self.tp.size, 'alloc']
@@ -112,10 +112,13 @@ class ASTDeclaration(ASTNode):
 
 
 class ASTIfStatement(ASTNode):
-    def __init__(self, label_id, parent=None):
+    def __init__(self, label_id=None, parent=None):
         super().__init__(parent)
 
         self.label_id = label_id
+
+    def accept(self, v: AstVisitor):
+        v.visit_if(self)
 
     def emit(self):
         out = []
@@ -137,13 +140,16 @@ class ASTIfStatement(ASTNode):
 
 
 class ASTWhileStatement(ASTNode):
-    def __init__(self, label_id, parent=None):
+    def __init__(self, label_id=None, parent=None):
         super().__init__(parent)
 
         self.label_id = label_id
 
-        self.cond_check_label = '_while_cond%d' % self.label_id
-        self.after_label = '_while_after%d' % self.label_id
+        self.cond_check_label = f'_while_cond{self.label_id}'
+        self.after_label = f'_while_after{self.label_id}'
+
+    def accept(self, v: AstVisitor):
+        v.visit_while(self)
 
     def emit(self):
         out = []
@@ -169,6 +175,9 @@ class ASTContinueStatement(ASTNode):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def accept(self, v: AstVisitor):
+        v.visit_continue(self)
+
     def emit(self):
         loop_node = find_parent_node_one_type(self, ASTWhileStatement)
         if not loop_node:
@@ -183,6 +192,9 @@ class ASTBreakStatement(ASTNode):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def accept(self, v: AstVisitor):
+        v.visit_break(self)
+
     def emit(self):
         loop_node = find_parent_node_one_type(self, ASTWhileStatement)
         if not loop_node:
@@ -194,13 +206,16 @@ class ASTBreakStatement(ASTNode):
 
 
 class ASTCodeBlock(ASTNode):
-    def __init__(self, symtable, parent=None):
+    def __init__(self, symtable=None, parent=None):
         super().__init__(parent)
 
         self.symtable = symtable
 
         self.curr_mem_idx = 0
         self.memory_size = 0
+
+    def accept(self, v: AstVisitor):
+        v.visit_code_block(self)
 
     def emit(self):
 
@@ -224,6 +239,9 @@ class ASTReturnStatement(ASTNode):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def accept(self, v: AstVisitor):
+        v.visit_return(self)
+
     def emit(self):
         p = find_parent_node_one_type(self, ASTFunctionDefinition)
         if p is None:
@@ -235,18 +253,24 @@ class ASTReturnStatement(ASTNode):
 
 
 class ASTFunctionDefinition(ASTNode):
-    def __init__(self, func_symbol, parent=None):
+    def __init__(self, func_symbol, func_name, ret_type, args, parent=None):
         super().__init__(parent)
 
         self.func_symbol = func_symbol
+        self.func_name = func_name
+        self.ret_type = ret_type
+        self.args = args
 
-        self.total_args_size = self.func_symbol.args_size
+        self.total_args_size = self.func_symbol.args_size if self.func_symbol else 0
         print('Total args size:', self.total_args_size)
 
         self.curr_mem_idx = 0
         self.memory_size = 0
 
         self.symtable = None
+
+    def accept(self, v: AstVisitor):
+        v.visit_function_definition(self)
 
     def emit(self):
         out = []
@@ -280,10 +304,14 @@ class ASTFunctionDefinition(ASTNode):
 
 
 class ASTFunctionCall(ASTNode):
-    def __init__(self, func_symbol, parent=None):
+    def __init__(self, func_symbol, func_name, parent=None):
         super().__init__(parent)
 
         self.func_symbol = func_symbol
+        self.func_name = func_name
+
+    def accept(self, v: AstVisitor):
+        v.visit_function_call(self)
 
     def emit(self):
         out = []
@@ -297,3 +325,30 @@ class ASTFunctionCall(ASTNode):
         out.append('push %d' % n_args)
         out.append('call %s' % self.func_symbol.label)
         return out
+
+
+def print_ast(root, lvl=0):
+    prefix = '    ' * lvl
+    print(prefix + '{')
+
+    print(prefix + ' Type:', root.__class__.__name__)
+
+    if root.__class__ == ASTDeclaration:
+        print(prefix + ' var_type:', root.tp)
+        print(prefix + ' var_name:', root.name)
+    if root.__class__ == ASTCodeBlock:
+        if root.symtable:
+            print(prefix + ' SymbolTable:')
+            print(root.symtable.show(prefix + '  '))
+
+    if hasattr(root, 'value'):
+        print(prefix + ' Value:', root.value)
+    if hasattr(root, 'symbol'):
+        print(prefix + ' Symbol:', root.symbol)
+
+    print(prefix + ' Children:')
+
+    for ch in root.children:
+        print_ast(ch, lvl + 1)
+
+    print(prefix + '}')

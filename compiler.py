@@ -14,6 +14,11 @@ if __name__ == '__main__':
             }
             return tmp;
        }
+       
+       func int sum(int x, int y)
+       {
+         return x + y;
+       }
        entry
        foo(1);
        //func int bar(){

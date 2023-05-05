@@ -101,10 +101,10 @@ class Lexer:
         self.add_regex_test(TokenType.WHITESPACE, r'\s+', False)
         for pat, token_type in self.punctuation.items():
             self.add_regex_test(token_type, pat)
-        for pat, token_type in self.operators.items():
-            self.add_regex_test(token_type, pat)
-        # NOTE: two-symbol operators like `==` or `!=` must be added after `=` test
+        # NOTE: two-symbol operators like `==` or `!=` must be added before `=` test
         for pat, token_type in self.operators_two_symbols.items():
+            self.add_regex_test(token_type, pat)
+        for pat, token_type in self.operators.items():
             self.add_regex_test(token_type, pat)
 
     def move_adv(self, st):

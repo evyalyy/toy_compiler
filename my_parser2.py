@@ -1,13 +1,11 @@
-from symbol_table import Symbol, SymbolTable, SymbolType, SymbolFunction, SymbolId
-
-from my_lexer import TokenType
+from my_lexer import TokenType, Token
 
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
     ASTWhileStatement, ASTBreakStatement, ASTContinueStatement, ASTReturnStatement, ASTFunctionCall, ASTEntryPoint
 
 from my_ast import print_ast
-
-from errors import UnexpectedTokenError, CompileError
+from errors import UnexpectedTokenError
+from ast_print_visitor import PrintVisitor
 
 '''
 
@@ -50,29 +48,17 @@ class Parser:
             self.tokens = []
         self.num_tokens = len(self.tokens)
 
-        self.curr_label_id = 0
-
         self.advance()
 
         self.root = None
 
-        self.symtable = SymbolTable()
-
-        self.init_types()
-
-    def init_types(self):
-
-        self.symtable.add(SymbolType('int', 1))
-        self.symtable.add(SymbolType('float', 1))
-
     def error_(self):
         raise UnexpectedTokenError(self.sym(), self.idx)
-        # raise SyntaxError('Unexpected token %s at position %d' % (self.sym(),self.idx))
 
     def eof(self):
         return self.idx == self.num_tokens
 
-    def sym(self):
+    def sym(self) -> Token:
         return self.curr_sym
 
     def expect(self, tp: TokenType, match=False):
@@ -104,6 +90,7 @@ class Parser:
             print('finish parsing')
             return False
         self.curr_sym = self.tokens[self.idx]
+        print(f'Advanced to symbol {self.curr_sym}')
         return True
 
     def program(self):
@@ -119,17 +106,11 @@ class Parser:
 
         self.match(TokenType.LEFT_CURL)
 
-        self.symtable = SymbolTable(self.symtable)
-        print('Code block table:')
-        print(self.symtable.show())
         stmt_nodes = self.statement_list()
 
-        curr_node = ASTCodeBlock(self.symtable)
+        curr_node = ASTCodeBlock()
         for stmt in stmt_nodes:
             curr_node.add_child(stmt)
-
-        if self.symtable.parent:
-            self.symtable = self.symtable.parent
 
         self.match(TokenType.RIGHT_CURL)
 
@@ -143,7 +124,7 @@ class Parser:
                            TokenType.ID, TokenType.WHILE, TokenType.CONTINUE, TokenType.BREAK,
                            TokenType.NUM, TokenType.ENTRY]
 
-        print('Current symbol:', self.sym())
+        print('Current token:', self.sym())
         nodes = []
         if self.expect_many(possible_tokens):
             curr_node = self.statement()
@@ -212,29 +193,18 @@ class Parser:
 
     def function_definition(self):
         self.match(TokenType.FUNC)
-        ret_type = self.identifier_type()
-        func_name = self.get_name()
+        ret = self.identifier()
+        func_name = self.identifier()
         self.match(TokenType.LEFT_PARENTHESIS)
         arg_list = self.func_arg_list_def()
         self.match(TokenType.RIGHT_PARENTHESIS)
 
-        _func = SymbolFunction(func_name, ret_type, arg_list)
-        f_sym = self.symtable.add(_func)
-
-        f = ASTFunctionDefinition(f_sym)
-        f.symtable = SymbolTable(self.symtable)
-        self.symtable = f.symtable
-
-        for tp, name in arg_list:
-            var = SymbolId(name, tp, None)
-            f.symtable.add(var)
+        function_definition_node = ASTFunctionDefinition(None, func_name, ret, arg_list)
 
         func_body = self.code_block()
-        f.add_child(func_body)
+        function_definition_node.add_child(func_body)
 
-        self.symtable = self.symtable.parent
-
-        return f
+        return function_definition_node
 
     def func_arg_list_def(self):
         arg_list = []
@@ -249,17 +219,15 @@ class Parser:
     def func_arg_list_def_rest(self):
         out = []
         if self.expect(TokenType.COMMA, True):
-            # TODO: function calls?
-            self.func_arg()
+            out.append(self.func_arg())
             out += self.func_arg_list_def_rest()
 
         # Do nothing for epsilon production
         return out
 
     def func_arg(self):
-
-        arg_type = self.identifier_type()
-        arg_name = self.get_name()
+        arg_type = self.identifier()
+        arg_name = self.identifier()
         return arg_type, arg_name
 
     def if_statement(self):
@@ -269,8 +237,7 @@ class Parser:
         self.match(TokenType.RIGHT_PARENTHESIS)
         body = self.code_block()
 
-        self.curr_label_id += 1
-        stmt = ASTIfStatement(self.curr_label_id)
+        stmt = ASTIfStatement()
         stmt.add_child(cond_expr)
         stmt.add_child(body)
         return stmt
@@ -282,8 +249,7 @@ class Parser:
         self.match(TokenType.RIGHT_PARENTHESIS)
         body = self.code_block()
 
-        self.curr_label_id += 1
-        w = ASTWhileStatement(self.curr_label_id)
+        w = ASTWhileStatement()
         w.add_child(cond_expr)
         w.add_child(body)
         return w
@@ -299,8 +265,8 @@ class Parser:
     def variable_declaration(self):
 
         self.match(TokenType.VAR)
-        tp_node = self.identifier_type()
-        var_node = self.identifier_var(tp_node)
+        tp_node = self.identifier()
+        var_node = self.identifier()
 
         decl_node = ASTDeclaration(tp_node, var_node)
 
@@ -400,7 +366,7 @@ class Parser:
 
     def postfix_expression(self):
 
-        print('In postfix_expression: curr token=', self.sym())
+        print('In postfix_expression: curr token: ', self.sym())
 
         lhs = self.primary_expression()
         return self.postfix_expression_rest(lhs)
@@ -455,17 +421,11 @@ class Parser:
 
         if self.expect(TokenType.ID, True):
             print('Identifier')
-            var_entry = self.symtable.find(s.lexeme)
-            print(s, var_entry)
-            is_id_or_func = var_entry.symbol_type in [Symbol.Id, Symbol.Function]
-            if var_entry is None or not is_id_or_func:
-                raise ValueError('Undeclared identifier:', s.lexeme)
-            if self.expect(TokenType.LEFT_PARENTHESIS):
-                if var_entry.symbol_type != Symbol.Function:
-                    raise CompileError(f'Expected function call, but got different kind of symbol: {var_entry}')
-                return ASTFunctionCall(var_entry)
 
-            return ASTId(var_entry)
+            if self.expect(TokenType.LEFT_PARENTHESIS):
+                return ASTFunctionCall(None, s.lexeme)
+
+            return ASTId(None, s.lexeme)
 
         self.match(TokenType.LEFT_PARENTHESIS)
         curr_node = self.expression()
@@ -473,32 +433,41 @@ class Parser:
 
         return curr_node
 
-    def get_name(self):
-        n = self.sym().lexeme
-        _s = self.symtable.find(n)
-        if _s:
-            raise CompileError(f'Symbol with name {n} already exists: {_s}')
+    def identifier(self):
+        node = ASTId(None, self.sym().lexeme)
         self.advance()
-        return n
+        return node
 
-    def identifier_type(self):
 
-        tp_name = self.sym().lexeme
+if __name__ == '__main__':
 
-        tp_entry = self.symtable.find(tp_name)
-        if tp_entry is None or tp_entry.symbol_type != Symbol.Type:
-            raise ValueError('%s does not name a type' % tp_name)
+    from my_lexer import Lexer
+    code = '''
+    {
+        var int x = 1;
+        var int y;
+        func int foo() { return 1; }
+        func int foo1(int arg1) {
+            if (arg1 == 0)
+            {
+                return arg1 + 1;
+            }
+            
+            while (arg1 > 0)
+            {
+                arg1 = arg1 - 1;
+            }
 
-        self.advance()
-
-        return tp_entry
-
-    def identifier_var(self, tp):
-        var_name = self.sym().lexeme
-        print('Variable name: "%s"' % var_name)
-        print(tp)
-
-        var_entry = self.symtable.add(SymbolId(var_name, tp, None))
-        self.advance()
-
-        return var_entry
+            return arg1;
+        }
+        func int foo2(int arg1, int arg2) { return arg1 + arg2 / 2; }
+        
+        var int ret = foo1(x, y + 1);
+    }
+    '''
+    lex = Lexer()
+    tokens = lex.analyze(code)
+    parser = Parser(tokens)
+    ast = parser.program()
+    visitor = PrintVisitor()
+    ast.accept(visitor)
