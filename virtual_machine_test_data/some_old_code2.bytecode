@@ -1,0 +1,18 @@
+program:
+
+    push 10;
+    push 20;
+    add;
+    jnz test;
+cont:
+    push 11;
+    push 12;
+    sub;
+    jnz test0;
+    push 1000;
+
+test0:
+test:
+    push 30;
+
+    halt;

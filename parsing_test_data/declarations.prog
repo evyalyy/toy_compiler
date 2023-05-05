@@ -1,0 +1,5 @@
+{
+    var int x = 1;
+    var int y;
+    var int z = x + y;
+}

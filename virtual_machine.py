@@ -252,6 +252,11 @@ class VirtualMachine:
 
         self.frame.mem_end -= v
 
+    def print(self):
+        v = self.top()
+        self.pop()
+        print(v)
+
     def halt(self):
         self.is_stopped = True
 
@@ -267,8 +272,9 @@ class VirtualMachine:
     def run_code(self, program_code):
 
         lines, labels = preprocess_code(program_code)
-        print(lines)
-        print(labels)
+        if self.debug:
+            print(lines)
+            print(labels)
         num_instructions = len(lines)
 
         self.ip = 0
@@ -330,115 +336,15 @@ class VirtualMachine:
 
 
 if __name__ == '__main__':
-    code = '''
-    // Code for factorial
-    fact:
-        dup;
-        push 2;
-        lt;
-        jz ok;        
-    //less2:
-        // Now 1 is on stack. Return it
-        ret;
-    ok:
-    // Do multiplication
-        dup;
-        dec;
-        push 1;
-        call fact;
-        mul;
-        ret;
+    def read(file_path):
+        with open(file_path, 'r') as f:
+            return f.read()
 
-    program:
-        push 5; // Put argument on stack
-        push 1;
-        // Fact procedure takes one argument <5>
-        call fact;
-        halt;
-    '''
+    code = read('./virtual_machine_test_data/factorial.bytecode')
 
-    # code = '''
-
-    # test2:
-    #     push 3;
-    #     push 2;
-    #     add;
-    #     push 2;
-    #     alloc;
-    #     show 2;
-    #     store 0;
-    #     load 0;
-    #     show 2;
-    #     ret;
-
-    # test:
-    #     push 2;
-    #     alloc;
-    #     show 2;
-    #     push 10;
-    #     push 20;
-    #     store 0;
-    #     store 1;
-    #     load 1;
-    #     load 0;
-    #     add;
-    #     show 2;
-    #     push 0;
-    #     call test2;
-    #     ret;
-
-    # program:
-    #     push 7;
-    #     push 8;
-    #     add;
-    #     push 0;
-    #     call test;
-    #     halt;
-    # '''
-
-    vm = VirtualMachine(debug=True)
+    vm = VirtualMachine(debug=False)
 
     vm.run_code(code)
 
-    print('After execution:')
-    vm.show(2)
-
-    unused = '''
-           PUSH 9;
-    while:
-          JZ end;
-          dup;
-          load 0;
-          add;
-          store 0;
-          pop;
-          dec;
-          JUMP while;
-    end:
-        pop;  
-        load 0;
-        push 55;
-        lt;
-    '''
-
-    # code = '''
-    # program:
-
-    #     push 10;
-    #     push 20;
-    #     add;
-    #     jnz test;
-    # cont:
-    #     push 11;
-    #     push 12;
-    #     sub;
-    #     jnz test0;
-    #     push 1000;
-
-    # test0:
-    # test:
-    #     push 30;
-
-    #     halt;
-
-    # '''
+    # print('After execution:')
+    # vm.show(2)

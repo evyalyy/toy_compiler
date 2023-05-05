@@ -1,0 +1,35 @@
+test2:
+    push 3;
+    push 2;
+    add;
+    push 2;
+    alloc;
+    show 2;
+    store 0;
+    load 0;
+    show 2;
+    ret;
+
+test:
+    push 2;
+    alloc;
+    show 2;
+    push 10;
+    push 20;
+    store 0;
+    store 1;
+    load 1;
+    load 0;
+    add;
+    show 2;
+    push 0;
+    call test2;
+    ret;
+
+program:
+    push 7;
+    push 8;
+    add;
+    push 0;
+    call test;
+    halt;

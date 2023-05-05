@@ -1,0 +1,24 @@
+// Code for factorial
+fact:
+    dup;
+    push 2;
+    lt;
+    jz more_than_2;
+// less than 2
+// Now 1 is on stack. Return it
+    ret;
+more_than_2:
+// Do multiplication
+    dup;
+    dec;
+    push 1;
+    call fact;
+    mul;
+    ret;
+
+program:
+    push 5; // Put argument on stack
+    push 1;
+    // Fact procedure takes one argument <5>
+    call fact;
+    print;

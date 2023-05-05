@@ -1,0 +1,15 @@
+PUSH 9;
+while:
+      JZ end;
+      dup;
+      load 0;
+      add;
+      store 0;
+      pop;
+      dec;
+      JUMP while;
+end:
+    pop;
+    load 0;
+    push 55;
+    lt;

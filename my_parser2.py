@@ -3,7 +3,6 @@ from my_lexer import TokenType, Token
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
     ASTWhileStatement, ASTBreakStatement, ASTContinueStatement, ASTReturnStatement, ASTFunctionCall, ASTEntryPoint
 
-from my_ast import print_ast
 from errors import UnexpectedTokenError
 from ast_print_visitor import PrintVisitor
 
@@ -441,30 +440,12 @@ class Parser:
 
 if __name__ == '__main__':
 
-    from my_lexer import Lexer
-    code = '''
-    {
-        var int x = 1;
-        var int y;
-        func int foo() { return 1; }
-        func int foo1(int arg1) {
-            if (arg1 == 0)
-            {
-                return arg1 + 1;
-            }
-            
-            while (arg1 > 0)
-            {
-                arg1 = arg1 - 1;
-            }
+    def read_code(file_path):
+        with open(file_path, 'r') as f:
+            return f.read()
 
-            return arg1;
-        }
-        func int foo2(int arg1, int arg2) { return arg1 + arg2 / 2; }
-        
-        var int ret = foo1(x, y + 1);
-    }
-    '''
+    from my_lexer import Lexer
+    code = read_code('parsing_test_data/function_without_return.prog')
     lex = Lexer()
     tokens = lex.analyze(code)
     parser = Parser(tokens)
