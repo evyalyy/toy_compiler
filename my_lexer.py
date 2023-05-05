@@ -3,14 +3,15 @@ from enum import Enum
 
 
 class TokenType(Enum):
-    NUM, ID, IF, ELSE, WHILE, DO, LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, PLUS, MINUS, LESS, \
-        EQUAL, SEMICOLON, EOF = range(16)
+    NUM, ID, \
+        IF, ELSE, WHILE, DO, \
+        LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, \
+        PLUS, MINUS, MUL, DIV, \
+        LESS, EQUAL, NOT_EQUAL, GE, LE, \
+        SEMICOLON, EOF, WHITESPACE = range(22)
 
 
 class Token:
-
-    # NUM, ID, IF, ELSE, WHILE, DO, LBRA, RBRA, LPAR, RPAR, PLUS, MINUS, LESS, \
-    # EQUAL, SEMICOLON, EOF = range(16)
 
     def __init__(self, lexeme=None, tp=None, value=None):
         self.lexeme = lexeme
@@ -20,9 +21,13 @@ class Token:
         self.line_no = None
         self.line_pos = None
 
+    def set_location(self, line_no, line_pos):
+        self.line_no = line_no
+        self.line_pos = line_pos - len(self.lexeme)
+
     def __str__(self):
         v = str(self.value) if self.value is not None else 'None'
-        return '(\"%s\",%s,%s)' % (self.lexeme, self.type, v)
+        return f'Token(\"{self.lexeme}\",{self.type},{v}, at {self.line_no}:{self.line_pos})'
 
 
 class LexerState(Enum):
@@ -46,7 +51,7 @@ class Lexer:
         self.state = LexerState.START_TOKEN
 
         self.curr_line_no = 0
-        self.last_newline = None
+        self.curr_pos_in_line = 0
 
         setattr(self, 'test_semicolon', lambda: self._test_one_sym(';'))
         setattr(self, 'test_colon', lambda: self._test_one_sym(','))
@@ -67,6 +72,12 @@ class Lexer:
         self.adv()
 
     def adv(self):
+        if self.code[self.curr_pos] == '\n':
+            self.curr_line_no += 1
+            self.curr_pos_in_line = 0
+        else:
+            self.curr_pos_in_line += 1
+
         self.curr_pos += 1
 
     def _test_one_sym(self, sym):
@@ -183,6 +194,7 @@ class Lexer:
                     continue
 
                 token = Token(lexeme, token_name)
+                token.set_location(self.curr_line_no, self.curr_pos_in_line)
                 if token_name == 'number':
                     token.value = int(lexeme)
                 if token_name == 'id':
