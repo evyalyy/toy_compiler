@@ -1,14 +1,15 @@
 from preprocessing import remove_comments
 from enum import Enum
+import re
 
 
 class TokenType(Enum):
     NUM, ID, \
-        IF, ELSE, WHILE, DO, \
-        LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, \
-        PLUS, MINUS, MUL, DIV, \
+        IF, ELSE, WHILE, CONTINUE, BREAK, VAR, FUNC, ENTRY, RETURN, \
+        LEFT_CURL, RIGHT_CURL, LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, \
+        PLUS, MINUS, MUL, DIV, ASSIGN, \
         LESS, EQUAL, NOT_EQUAL, GE, LE, \
-        SEMICOLON, EOF, WHITESPACE = range(22)
+        SEMICOLON, COMMA, EOF, WHITESPACE = range(31)
 
 
 class Token:
@@ -36,10 +37,43 @@ class LexerState(Enum):
 
 
 class Lexer:
-    keywords = ['if', 'else', 'while', 'break', 'continue', 'var', 'func', 'entry', 'return']
+    keywords = {
+        'if': TokenType.IF,
+        'else': TokenType.ELSE,
+        'while': TokenType.WHILE,
+        'break': TokenType.BREAK,
+        'continue': TokenType.CONTINUE,
+        'var': TokenType.VAR,
+        'func': TokenType.FUNC,
+        'entry': TokenType.ENTRY,
+        'return': TokenType.RETURN
+    }
 
-    op_map = {'+': 'plus', '-': 'minus', '=': 'assign', '*': 'multiply', '/': 'divide', '<': 'less', '>': 'greater',
-              '==': 'equal', '!=': 'notequal'}
+    punctuation = {
+        r'\{': TokenType.LEFT_CURL,
+        r'\}': TokenType.RIGHT_CURL,
+        r'\[': TokenType.LEFT_BRACKET,
+        r'\]': TokenType.RIGHT_BRACKET,
+        r'\(': TokenType.LEFT_PARENTHESIS,
+        r'\)': TokenType.RIGHT_PARENTHESIS,
+        r';': TokenType.SEMICOLON,
+        r'\,': TokenType.COMMA
+    }
+
+    operators = {
+        r'\+': TokenType.PLUS,
+        r'\-': TokenType.MINUS,
+        r'\*': TokenType.MUL,
+        '/': TokenType.DIV,
+        '=': TokenType.ASSIGN,
+        r'\>': TokenType.GE,
+        r'\<': TokenType.LE
+    }
+
+    operators_two_symbols = {
+        '==': TokenType.EQUAL,
+        '!=': TokenType.NOT_EQUAL
+    }
 
     def __init__(self, comment_mark='//'):
 
@@ -53,19 +87,17 @@ class Lexer:
         self.curr_line_no = 0
         self.curr_pos_in_line = 0
 
-        setattr(self, 'test_semicolon', lambda: self._test_one_sym(';'))
-        setattr(self, 'test_colon', lambda: self._test_one_sym(','))
-
-        setattr(self, 'test_lcurv', lambda: self._test_one_sym('{'))
-        setattr(self, 'test_rcurv', lambda: self._test_one_sym('}'))
-
-        setattr(self, 'test_lsquare', lambda: self._test_one_sym('['))
-        setattr(self, 'test_rsquare', lambda: self._test_one_sym(']'))
-
-        setattr(self, 'test_lparen', lambda: self._test_one_sym('('))
-        setattr(self, 'test_rparen', lambda: self._test_one_sym(')'))
-
-        setattr(self, 'test_star', lambda: self._test_one_sym('*'))
+        self.generic_tests = []
+        self.add_regex_test(TokenType.ID, r'[a-zA-Z_]\w*')
+        self.add_regex_test(TokenType.NUM, r'\d+')
+        self.add_regex_test(TokenType.WHITESPACE, r'\s+', False)
+        for pat, token_type in self.punctuation.items():
+            self.add_regex_test(token_type, pat)
+        for pat, token_type in self.operators.items():
+            self.add_regex_test(token_type, pat)
+        # NOTE: two-symbol operators like `==` or `!=` must be added after `=` test
+        for pat, token_type in self.operators_two_symbols.items():
+            self.add_regex_test(token_type, pat)
 
     def move_adv(self, st):
         self.state = st
@@ -88,77 +120,17 @@ class Lexer:
         else:
             return False
 
-    def test_id(self):
+    def regex_test(self, pattern: re.Pattern, use_eol=True):
+        eol = self.code.find('\n', self.curr_pos) if use_eol else len(self.code)
+        m = pattern.match(self.code, self.curr_pos, eol)
+        if m:
+            for i in range(m.end()-m.start()):
+                self.adv()
+            return True
+        return False
 
-        self.state = LexerState.START_TOKEN
-        code_len = len(self.code)
-        while self.curr_pos < code_len:
-            c = self.code[self.curr_pos]
-
-            if self.state == LexerState.START_TOKEN:
-                if c.isalpha() or c == '_':
-                    self.move_adv(LexerState.CONTINUE_TOKEN)
-                    continue
-
-                return False
-            if self.state == LexerState.CONTINUE_TOKEN:
-                if c.isalpha() or c.isdigit() or c == '_':
-                    self.adv()
-                    continue
-
-                return True
-
-    def test_number(self):
-
-        self.state = LexerState.START_TOKEN
-        code_len = len(self.code)
-        while self.curr_pos < code_len:
-            c = self.code[self.curr_pos]
-            if self.state == LexerState.START_TOKEN:
-                if c.isdigit():
-                    self.move_adv(LexerState.CONTINUE_TOKEN)
-                    continue
-
-                return False
-            if self.state == LexerState.CONTINUE_TOKEN:
-                if c.isdigit():
-                    self.adv()
-                    continue
-                return True
-
-    def test_whitespace(self):
-
-        self.state = LexerState.START_TOKEN
-        code_len = len(self.code)
-        while self.curr_pos < code_len:
-            c = self.code[self.curr_pos]
-            if self.state == LexerState.START_TOKEN:
-                if c in [' ', '\n', '\t']:
-                    self.move_adv(LexerState.CONTINUE_TOKEN)
-                    continue
-                return False
-            if self.state == LexerState.CONTINUE_TOKEN:
-                if c in [' ', '\n', '\t']:
-                    self.adv()
-                    continue
-
-                return True
-
-    def test_operator(self):
-        self.state = LexerState.START_TOKEN
-        code_len = len(self.code)
-        while self.curr_pos < code_len:
-            c = self.code[self.curr_pos]
-            if self.state == LexerState.START_TOKEN:
-                if c in ['=', '+', '-', '<', '>', '*', '!']:
-                    self.move_adv(LexerState.CONTINUE_TOKEN)
-                    continue
-                return False
-            if self.state == LexerState.CONTINUE_TOKEN:
-                if c in ['=']:
-                    self.adv()
-                    continue
-                return True
+    def add_regex_test(self, token_type: TokenType, pattern: str, use_eol=True):
+        self.generic_tests.append((token_type, re.compile(pattern, re.ASCII), use_eol))
 
     def get_lexeme(self):
         return self.code[self.lex_begin:self.curr_pos]
@@ -171,38 +143,30 @@ class Lexer:
 
         self.curr_line_no = 0
 
-        tests = [s for s in dir(self) if s.startswith('test_')]
         tokens = []
         while self.curr_pos < len(self.code):
 
-            # print('On pos:',self.curr_pos)
-            # print('Context:',code[self.curr_pos-10:self.curr_pos+10])
+            for token_type, pattern, use_eol in self.generic_tests:
 
-            for i, t in enumerate(tests):
-
-                # print('Testing',t)
-                ret = getattr(self, t)()
-                if not ret:
+                found = self.regex_test(pattern, use_eol)
+                if not found:
                     continue
 
-                token_name = t.replace('test_', '')
                 lexeme = self.get_lexeme()
 
                 self.lex_begin = self.curr_pos
 
-                if token_name == 'whitespace':
+                if token_type == TokenType.WHITESPACE:
                     continue
 
-                token = Token(lexeme, token_name)
+                token = Token(lexeme, token_type)
                 token.set_location(self.curr_line_no, self.curr_pos_in_line)
-                if token_name == 'number':
-                    token.value = int(lexeme)
-                if token_name == 'id':
-                    if lexeme in Lexer.keywords:
-                        token.type = lexeme
 
-                if token_name == 'operator':
-                    token.type = Lexer.op_map[lexeme]
+                if token_type == TokenType.NUM:
+                    token.value = int(lexeme)
+                if token_type == TokenType.ID:
+                    if lexeme in Lexer.keywords:
+                        token.type = Lexer.keywords.get(lexeme)
 
                 tokens.append(token)
 
@@ -213,8 +177,10 @@ if __name__ == '__main__':
 
     source_code = '''
 10 + 10
-// foo + bar
+foo + bar
 int x = 10;// this is a comment
+int xy1_zd = abcd
+while (x < 1) { var tmp y = 1; y == 100; }
 '''
 
     lex = Lexer()

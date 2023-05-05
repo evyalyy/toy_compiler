@@ -1,5 +1,7 @@
 from symbol_table import Symbol, SymbolTable, SymbolType, SymbolFunction, SymbolId
 
+from my_lexer import TokenType
+
 
 class CompileError(Exception):
     def __init__(self, msg):
@@ -24,7 +26,7 @@ class UnexpectedTokenError(CompileError):
         self.pos = pos
 
     def __str__(self):
-        return 'Unexpected token <%s> at position %d' % (self.tok, self.pos)
+        return f'Unexpected token <{self.tok}> at position {self.pos}'
 
 
 class LoopError(CompileError):
@@ -34,15 +36,12 @@ class LoopError(CompileError):
         self.name = name
 
     def __str__(self):
-        msg = '<%s> statement at pos %d is outside a loop' % (self.name, self.pos)
-        return msg
+        return f'<{self.name}> statement at pos {self.pos} is outside a loop'
 
 
 class ASTNode:
 
-    def __init__(self, tp, parent=None):
-        self.type = tp
-
+    def __init__(self, parent=None):
         self.parent = parent
         self.children = []
 
@@ -59,36 +58,40 @@ class ASTNode:
 
 
 def find_parent_node(node, tp_list):
-    if isinstance(tp_list, str):
-        tp_list = [tp_list]
+
+    tp_list = [tp.__name__ for tp in tp_list]
 
     curr = node.parent
 
     while curr is not None:
-        if curr.type in tp_list:
+        if curr.__class__.__name__ in tp_list:
             return curr
         curr = curr.parent
     return None
 
 
+def find_parent_node_one_type(node, tp):
+    return find_parent_node(node, [tp])
+
+
 class ASTExpr(ASTNode):
 
     def __init__(self, op, parent=None):
-        super(ASTExpr, self).__init__(op, parent)
+        super().__init__(parent)
         self.op = op
 
     def emit(self):
 
         print('Expression', self.op)
-        binary_op_map = {'plus': 'add', 'minus': 'sub', 'multiply': 'mul', 'divide': 'div', 'less': 'lt',
-                         'greater': 'gt', 'equal': 'eq', 'notequal': 'neq'}
+        binary_op_map = {TokenType.PLUS: 'add', TokenType.MINUS: 'sub', TokenType.MUL: 'mul', TokenType.DIV: 'div',
+                         TokenType.LE: 'lt', TokenType.GE: 'gt', TokenType.EQUAL: 'eq', TokenType.NOT_EQUAL: 'neq'}
 
         if self.op in binary_op_map:
             get_op1 = self.children[0].emit()
             get_op2 = self.children[1].emit()
             return get_op1 + get_op2 + [binary_op_map[self.op]]
 
-        if self.op == 'assign':
+        if self.op == TokenType.ASSIGN:
             addr = self.children[0].symbol.address
             calc_rhs = self.children[1].emit()
             return calc_rhs + ['store %d' % addr]
@@ -96,7 +99,7 @@ class ASTExpr(ASTNode):
 
 class ASTEntryPoint(ASTNode):
     def __init__(self, parent=None):
-        super().__init__('entry', parent)
+        super().__init__(parent)
 
     def emit(self):
         return ['program:']
@@ -104,7 +107,7 @@ class ASTEntryPoint(ASTNode):
 
 class ASTNumber(ASTNode):
     def __init__(self, value, parent=None):
-        super(ASTNumber, self).__init__('number', parent)
+        super().__init__(parent)
 
         self.value = value
 
@@ -115,7 +118,7 @@ class ASTNumber(ASTNode):
 
 class ASTId(ASTNode):
     def __init__(self, symbol, parent=None):
-        super(ASTId, self).__init__('id', parent)
+        super().__init__(parent)
 
         self.symbol = symbol
 
@@ -126,7 +129,7 @@ class ASTId(ASTNode):
 
 class ASTDeclaration(ASTNode):
     def __init__(self, tp_sym, var_sym, parent=None):
-        super(ASTDeclaration, self).__init__('declaration', parent)
+        super().__init__(parent)
 
         self.tp = tp_sym
         self.name = var_sym
@@ -147,7 +150,7 @@ class ASTDeclaration(ASTNode):
 
 class ASTIfStatement(ASTNode):
     def __init__(self, label_id, parent=None):
-        super(ASTIfStatement, self).__init__('if', parent)
+        super().__init__(parent)
 
         self.label_id = label_id
 
@@ -172,7 +175,7 @@ class ASTIfStatement(ASTNode):
 
 class ASTWhileStatement(ASTNode):
     def __init__(self, label_id, parent=None):
-        super(ASTWhileStatement, self).__init__('while', parent)
+        super().__init__(parent)
 
         self.label_id = label_id
 
@@ -201,12 +204,12 @@ class ASTWhileStatement(ASTNode):
 
 class ASTContinueStatement(ASTNode):
     def __init__(self, parent=None):
-        super(ASTContinueStatement, self).__init__('continue', parent)
+        super().__init__(parent)
 
     def emit(self):
-        loop_node = find_parent_node(self, 'while')
+        loop_node = find_parent_node_one_type(self, ASTWhileStatement)
         if not loop_node:
-            raise LoopError(self.type, 0)
+            raise LoopError(self.__class__.__name__, 0)
 
         cond_check_label = loop_node.cond_check_label
 
@@ -215,12 +218,12 @@ class ASTContinueStatement(ASTNode):
 
 class ASTBreakStatement(ASTNode):
     def __init__(self, parent=None):
-        super(ASTBreakStatement, self).__init__('break', parent)
+        super().__init__(parent)
 
     def emit(self):
-        loop_node = find_parent_node(self, 'while')
+        loop_node = find_parent_node_one_type(self, ASTWhileStatement)
         if not loop_node:
-            raise LoopError(self.type, 0)
+            raise LoopError(self.__class__.__name__, 0)
 
         after_label = loop_node.after_label
 
@@ -229,7 +232,7 @@ class ASTBreakStatement(ASTNode):
 
 class ASTCodeBlock(ASTNode):
     def __init__(self, symtable, parent=None):
-        super(ASTCodeBlock, self).__init__('code_block', parent)
+        super().__init__(parent)
 
         self.symtable = symtable
 
@@ -240,7 +243,7 @@ class ASTCodeBlock(ASTNode):
 
         out = []
 
-        parent_code_block = find_parent_node(self, ['code_block', 'function_definition'])
+        parent_code_block = find_parent_node(self, [ASTCodeBlock, ASTFunctionDefinition])
         if parent_code_block:
             self.curr_mem_idx = parent_code_block.curr_mem_idx
 
@@ -256,10 +259,10 @@ class ASTCodeBlock(ASTNode):
 
 class ASTReturnStatement(ASTNode):
     def __init__(self, parent=None):
-        super().__init__('return', parent)
+        super().__init__(parent)
 
     def emit(self):
-        p = find_parent_node(self, 'function_definition')
+        p = find_parent_node_one_type(self, ASTFunctionDefinition)
         if p is None:
             raise InvalidReturError()
         expr = self.children[0]
@@ -270,7 +273,7 @@ class ASTReturnStatement(ASTNode):
 
 class ASTFunctionDefinition(ASTNode):
     def __init__(self, func_symbol, parent=None):
-        super().__init__('function_definition', parent)
+        super().__init__(parent)
 
         self.func_symbol = func_symbol
 
@@ -278,14 +281,14 @@ class ASTFunctionDefinition(ASTNode):
         print('Total args size:', self.total_args_size)
 
         self.curr_mem_idx = 0
-        self.memsize = 0
+        self.memory_size = 0
 
         self.symtable = None
 
     def emit(self):
         out = []
 
-        if len(self.children) < 1 or self.children[0].type != 'code_block':
+        if len(self.children) < 1 or not isinstance(self.children[0], ASTCodeBlock):
             raise ValueError('No code block for function:', self.func_symbol.name)
 
         body = self.children[0]
@@ -294,7 +297,7 @@ class ASTFunctionDefinition(ASTNode):
             var = self.symtable.find(name)
             var.address = self.curr_mem_idx
             self.curr_mem_idx += tp.size
-            self.memsize += tp.size
+            self.memory_size += tp.size
 
         label = self.func_symbol.label
         out.append(label + ':')
@@ -315,7 +318,7 @@ class ASTFunctionDefinition(ASTNode):
 
 class ASTFunctionCall(ASTNode):
     def __init__(self, func_symbol, parent=None):
-        super().__init__('function_call', parent)
+        super().__init__(parent)
 
         self.func_symbol = func_symbol
 
@@ -367,12 +370,12 @@ def print_ast(root, lvl=0):
     prefix = '    ' * lvl
     print(prefix + '{')
 
-    print(prefix + ' Type:', root.type)
+    print(prefix + ' Type:', root.__class__.__name__)
 
-    if root.type == 'declaration':
+    if root.__class__ == ASTDeclaration:
         print(prefix + ' var_type:', root.tp)
         print(prefix + ' var_name:', root.name)
-    if root.type == 'code_block':
+    if root.__class__ == ASTCodeBlock:
         print(prefix + ' SymbolTable:')
         print(root.symtable.show(prefix + '  '))
 
@@ -425,7 +428,7 @@ class Parser:
     def sym(self):
         return self.curr_sym
 
-    def expect(self, tp, match=False):
+    def expect(self, tp: TokenType, match=False):
         s = self.sym()
         if tp != s.type:
             return False
@@ -441,7 +444,7 @@ class Parser:
                 return True
         return False
 
-    def match(self, tp):
+    def match(self, tp: TokenType):
         s = self.sym()
         if tp != s.type:
             self.error_()
@@ -467,7 +470,7 @@ class Parser:
 
     def code_block(self):
 
-        self.match('lcurv')
+        self.match(TokenType.LEFT_CURL)
 
         self.symtable = SymbolTable(self.symtable)
         print('Code block table:')
@@ -481,15 +484,17 @@ class Parser:
         if self.symtable.parent:
             self.symtable = self.symtable.parent
 
-        self.match('rcurv')
+        self.match(TokenType.RIGHT_CURL)
 
         return curr_node
 
     def statement_list(self):
 
         # FIRST(statement)
-        possible_tokens = ['lparen', 'var', 'func', 'return', 'if', 'lcurv',
-                           'id', 'while', 'continue', 'break', 'number', 'entry']
+        possible_tokens = [TokenType.LEFT_PARENTHESIS,
+                           TokenType.VAR, TokenType.FUNC, TokenType.RETURN, TokenType.IF, TokenType.LEFT_CURL,
+                           TokenType.ID, TokenType.WHILE, TokenType.CONTINUE, TokenType.BREAK,
+                           TokenType.NUM, TokenType.ENTRY]
 
         print('Current symbol:', self.sym())
         nodes = []
@@ -504,48 +509,48 @@ class Parser:
 
     def statement(self):
 
-        if self.expect('var'):
+        if self.expect(TokenType.VAR):
             dec = self.variable_declaration()
-            self.match('semicolon')
+            self.match(TokenType.SEMICOLON)
             return dec
 
-        if self.expect('func'):
+        if self.expect(TokenType.FUNC):
             func_def = self.function_definition()
             return func_def
 
-        if self.expect('return', True):
+        if self.expect(TokenType.RETURN, True):
             return self.return_statement()
 
         # expecting symbol from FIRST(expression)
-        if self.expect_many(['id', 'lparen', 'number']):
+        if self.expect_many([TokenType.ID, TokenType.LEFT_PARENTHESIS, TokenType.NUM]):
             expr = self.expression()
-            self.match('semicolon')
+            self.match(TokenType.SEMICOLON)
             return expr
 
-        if self.expect('if'):
+        if self.expect(TokenType.IF):
             print('IF statement')
             return self.if_statement()
 
-        if self.expect('while'):
+        if self.expect(TokenType.WHILE):
             print('WHILE statement')
             return self.while_statement()
 
-        if self.expect('continue'):
+        if self.expect(TokenType.CONTINUE):
             print('Continue')
             cont = self.continue_statement()
-            self.match('semicolon')
+            self.match(TokenType.SEMICOLON)
             return cont
 
-        if self.expect('break'):
+        if self.expect(TokenType.BREAK):
             print('Break')
             br = self.break_statement()
-            self.match('semicolon')
+            self.match(TokenType.SEMICOLON)
             return br
 
-        if self.expect('entry', True):
+        if self.expect(TokenType.ENTRY, True):
             return ASTEntryPoint()
 
-        if self.expect('lcurv'):
+        if self.expect(TokenType.LEFT_CURL):
             return self.code_block()
 
         self.error_()
@@ -553,18 +558,18 @@ class Parser:
     def return_statement(self):
 
         expr = self.expression()
-        self.match('semicolon')
+        self.match(TokenType.SEMICOLON)
         s = ASTReturnStatement()
         s.add_child(expr)
         return s
 
     def function_definition(self):
-        self.match('func')
+        self.match(TokenType.FUNC)
         ret_type = self.identifier_type()
         func_name = self.get_name()
-        self.match('lparen')
+        self.match(TokenType.LEFT_PARENTHESIS)
         arg_list = self.func_arg_list_def()
-        self.match('rparen')
+        self.match(TokenType.RIGHT_PARENTHESIS)
 
         _func = SymbolFunction(func_name, ret_type, arg_list)
         f_sym = self.symtable.add(_func)
@@ -586,7 +591,7 @@ class Parser:
 
     def func_arg_list_def(self):
         arg_list = []
-        if self.expect('id'):
+        if self.expect(TokenType.ID):
             arg_tuple = self.func_arg()
             arg_list.append(arg_tuple)
             arg_list += self.func_arg_list_def_rest()
@@ -596,9 +601,9 @@ class Parser:
 
     def func_arg_list_def_rest(self):
         out = []
-        if self.expect('comma', True):
+        if self.expect(TokenType.COMMA, True):
             # TODO: function calls?
-            arg_tuple = self.func_arg()
+            self.func_arg()
             out += self.func_arg_list_def_rest()
 
         # Do nothing for epsilon production
@@ -611,10 +616,10 @@ class Parser:
         return arg_type, arg_name
 
     def if_statement(self):
-        self.match('if')
-        self.match('lparen')
+        self.match(TokenType.IF)
+        self.match(TokenType.LEFT_PARENTHESIS)
         cond_expr = self.expression()
-        self.match('rparen')
+        self.match(TokenType.RIGHT_PARENTHESIS)
         body = self.code_block()
 
         self.curr_label_id += 1
@@ -624,10 +629,10 @@ class Parser:
         return stmt
 
     def while_statement(self):
-        self.match('while')
-        self.match('lparen')
+        self.match(TokenType.WHILE)
+        self.match(TokenType.LEFT_PARENTHESIS)
         cond_expr = self.expression()
-        self.match('rparen')
+        self.match(TokenType.RIGHT_PARENTHESIS)
         body = self.code_block()
 
         self.curr_label_id += 1
@@ -637,22 +642,22 @@ class Parser:
         return w
 
     def continue_statement(self):
-        self.match('continue')
+        self.match(TokenType.CONTINUE)
         return ASTContinueStatement()
 
     def break_statement(self):
-        self.match('break')
+        self.match(TokenType.BREAK)
         return ASTBreakStatement()
 
     def variable_declaration(self):
 
-        self.match('var')
+        self.match(TokenType.VAR)
         tp_node = self.identifier_type()
         var_node = self.identifier_var(tp_node)
 
         decl_node = ASTDeclaration(tp_node, var_node)
 
-        if self.expect('assign', True):
+        if self.expect(TokenType.ASSIGN, True):
             expr = self.expression()
             decl_node.add_child(expr)
 
@@ -669,9 +674,9 @@ class Parser:
 
     def assignment_expr_rhs(self, lhs):
 
-        if self.expect('assign', True):
+        if self.expect(TokenType.ASSIGN, True):
             rhs = self.comparison()
-            node = ASTExpr('assign')
+            node = ASTExpr(TokenType.ASSIGN)
             node.add_child(lhs)
             node.add_child(rhs)
             return self.assignment_expr_rhs(node)
@@ -686,7 +691,7 @@ class Parser:
 
     def comparison_rhs(self, lhs):
 
-        if self.expect_many(['less', 'greater', 'equal', 'notequal']):
+        if self.expect_many([TokenType.LE, TokenType.GE, TokenType.EQUAL, TokenType.NOT_EQUAL]):
             op = self.sym().type
             self.advance()
             rhs = self.additive_expr()
@@ -705,16 +710,16 @@ class Parser:
 
     def additive_expr_rhs(self, lhs):
 
-        if self.expect('plus', True):
+        if self.expect(TokenType.PLUS, True):
             rhs = self.multiplicative_expr()
-            curr_node = ASTExpr('plus')
+            curr_node = ASTExpr(TokenType.PLUS)
             curr_node.add_child(lhs)
             curr_node.add_child(rhs)
             return self.additive_expr_rhs(curr_node)
 
-        if self.expect('minus', True):
+        if self.expect(TokenType.MINUS, True):
             rhs = self.multiplicative_expr()
-            curr_node = ASTExpr('minus')
+            curr_node = ASTExpr(TokenType.MINUS)
             curr_node.add_child(lhs)
             curr_node.add_child(rhs)
             return self.additive_expr_rhs(curr_node)
@@ -729,16 +734,16 @@ class Parser:
 
     def multiplicative_expr_rhs(self, lhs):
 
-        if self.expect('multiply', True):
+        if self.expect(TokenType.MUL, True):
             rhs = self.postfix_expression()
-            curr_node = ASTExpr('multiply')
+            curr_node = ASTExpr(TokenType.MUL)
             curr_node.add_child(lhs)
             curr_node.add_child(rhs)
             return self.multiplicative_expr_rhs(curr_node)
 
-        if self.expect('divide', True):
+        if self.expect(TokenType.DIV, True):
             rhs = self.postfix_expression()
-            curr_node = ASTExpr('divide')
+            curr_node = ASTExpr(TokenType.DIV)
             curr_node.add_child(lhs)
             curr_node.add_child(rhs)
             return self.multiplicative_expr_rhs(curr_node)
@@ -757,7 +762,7 @@ class Parser:
 
         nodes = []
         # FIRST(expression)
-        if self.expect_many(['id', 'lparen', 'number']):
+        if self.expect_many([TokenType.ID, TokenType.LEFT_PARENTHESIS, TokenType.NUM]):
             expr = self.expression()
             nodes.append(expr)
             nodes += self.func_call_arg_list_rest()
@@ -766,7 +771,7 @@ class Parser:
     def func_call_arg_list_rest(self):
 
         nodes = []
-        if self.expect('comma', True):
+        if self.expect(TokenType.COMMA, True):
             expr = self.expression()
             nodes.append(expr)
             nodes += self.func_call_arg_list_rest()
@@ -774,16 +779,16 @@ class Parser:
 
     def postfix_expression_rest(self, lhs):
 
-        if self.expect('lparen', True):
+        if self.expect(TokenType.LEFT_PARENTHESIS, True):
 
             arg_list = self.func_call_arg_list()
             for arg in arg_list:
                 lhs.add_child(arg)
 
-            self.match('rparen')
+            self.match(TokenType.RIGHT_PARENTHESIS)
             return lhs
 
-        if self.expect('lsquare'):
+        if self.expect(TokenType.LEFT_BRACKET):
             raise NotImplementedError('Array subscript not implemented')
 
             # TODO: arrays?
@@ -797,11 +802,11 @@ class Parser:
         s = self.sym()
         print('In primary_expression: current token:%s' % str(s))
 
-        if self.expect('number', True):
+        if self.expect(TokenType.NUM, True):
             print('Number')
             return ASTNumber(s.value)
 
-        if self.expect('id', True):
+        if self.expect(TokenType.ID, True):
             print('Identifier')
             var_entry = self.symtable.find(s.lexeme)
             print(s, var_entry)
@@ -815,16 +820,13 @@ class Parser:
             if var_entry.symbol_type == Symbol.Function:
                 return ASTFunctionCall(var_entry)
 
-        self.match('lparen')
+        self.match(TokenType.LEFT_PARENTHESIS)
         curr_node = self.expression()
-        self.match('rparen')
+        self.match(TokenType.RIGHT_PARENTHESIS)
 
         return curr_node
 
     def get_name(self):
-        """
-        TODO: add check that there is no type with such name (or variable, or function)
-        """
         n = self.sym().lexeme
         _s = self.symtable.find(n)
         if _s:
