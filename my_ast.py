@@ -102,7 +102,7 @@ class ASTDeclaration(ASTNode):
 
         self.name.address = self.parent.curr_mem_idx
         self.parent.curr_mem_idx += self.tp.size
-        self.parent.memsize += self.tp.size
+        self.parent.memory_size += self.tp.size
 
         if len(self.children) > 0:
             out += self.children[0].emit()

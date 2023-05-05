@@ -484,12 +484,12 @@ class Parser:
             is_id_or_func = var_entry.symbol_type in [Symbol.Id, Symbol.Function]
             if var_entry is None or not is_id_or_func:
                 raise ValueError('Undeclared identifier:', s.lexeme)
-
-            if var_entry.symbol_type == Symbol.Id:
-                return ASTId(var_entry)
-
-            if var_entry.symbol_type == Symbol.Function:
+            if self.expect(TokenType.LEFT_PARENTHESIS):
+                if var_entry.symbol_type != Symbol.Function:
+                    raise CompileError(f'Expected function call, but got different kind of symbol: {var_entry}')
                 return ASTFunctionCall(var_entry)
+
+            return ASTId(var_entry)
 
         self.match(TokenType.LEFT_PARENTHESIS)
         curr_node = self.expression()
