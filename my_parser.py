@@ -11,7 +11,7 @@ class CompileError(Exception):
         return self.msg
 
 
-class InvalidReturError(CompileError):
+class InvalidReturnError(CompileError):
     def __init__(self):
         pass
 
@@ -264,7 +264,7 @@ class ASTReturnStatement(ASTNode):
     def emit(self):
         p = find_parent_node_one_type(self, ASTFunctionDefinition)
         if p is None:
-            raise InvalidReturError()
+            raise InvalidReturnError()
         expr = self.children[0]
         out = expr.emit()
         out.append('ret')
@@ -830,7 +830,7 @@ class Parser:
         n = self.sym().lexeme
         _s = self.symtable.find(n)
         if _s:
-            raise ValueError('There is a symbol with such name:', _s)
+            raise CompileError(f'Symbol with name {n} already exists: {_s}')
         self.advance()
         return n
 

@@ -1,6 +1,7 @@
 from preprocessing import remove_comments
 from enum import Enum
 import re
+from dataclasses import dataclass
 
 
 class TokenType(Enum):
@@ -12,6 +13,15 @@ class TokenType(Enum):
         SEMICOLON, COMMA, EOF, WHITESPACE = range(31)
 
 
+@dataclass
+class TokenLocation:
+    line_no: int
+    line_pos: int
+
+    def __str__(self):
+        return f'line:{self.line_no},pos:{self.line_pos}'
+
+
 class Token:
 
     def __init__(self, lexeme=None, tp=None, value=None):
@@ -19,16 +29,14 @@ class Token:
         self.type = tp
         self.value = value
 
-        self.line_no = None
-        self.line_pos = None
+        self.location = None
 
     def set_location(self, line_no, line_pos):
-        self.line_no = line_no
-        self.line_pos = line_pos - len(self.lexeme)
+        self.location = TokenLocation(line_no, line_pos - len(self.lexeme))
 
     def __str__(self):
         v = str(self.value) if self.value is not None else 'None'
-        return f'Token(\"{self.lexeme}\",{self.type},{v}, at {self.line_no}:{self.line_pos})'
+        return f'Token(\"{self.lexeme}\",{self.type},{v}, at {self.location})'
 
 
 class LexerState(Enum):
@@ -111,14 +119,6 @@ class Lexer:
             self.curr_pos_in_line += 1
 
         self.curr_pos += 1
-
-    def _test_one_sym(self, sym):
-        c = self.code[self.curr_pos]
-        if c == sym:
-            self.adv()
-            return True
-        else:
-            return False
 
     def regex_test(self, pattern: re.Pattern, use_eol=True):
         eol = self.code.find('\n', self.curr_pos) if use_eol else len(self.code)
