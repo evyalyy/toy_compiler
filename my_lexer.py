@@ -1,4 +1,10 @@
 from preprocessing import remove_comments
+from enum import Enum
+
+
+class TokenType(Enum):
+    NUM, ID, IF, ELSE, WHILE, DO, LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, PLUS, MINUS, LESS, \
+        EQUAL, SEMICOLON, EOF = range(16)
 
 
 class Token:
@@ -19,19 +25,25 @@ class Token:
         return '(\"%s\",%s,%s)' % (self.lexeme, self.type, v)
 
 
+class LexerState(Enum):
+    START_TOKEN = 0
+    CONTINUE_TOKEN = 1
+
+
 class Lexer:
     keywords = ['if', 'else', 'while', 'break', 'continue', 'var', 'func', 'entry', 'return']
 
     op_map = {'+': 'plus', '-': 'minus', '=': 'assign', '*': 'multiply', '/': 'divide', '<': 'less', '>': 'greater',
               '==': 'equal', '!=': 'notequal'}
 
-    def __init__(self):
+    def __init__(self, comment_mark='//'):
 
+        self.comment_mark = comment_mark
         self.lex_begin = 0
         self.curr_pos = 0
         self.code = ''
 
-        self.state = 0
+        self.state = LexerState.START_TOKEN
 
         self.curr_line_no = 0
         self.last_newline = None
@@ -52,7 +64,7 @@ class Lexer:
 
     def move_adv(self, st):
         self.state = st
-        self.curr_pos += 1
+        self.adv()
 
     def adv(self):
         self.curr_pos += 1
@@ -67,18 +79,18 @@ class Lexer:
 
     def test_id(self):
 
-        self.state = 0
+        self.state = LexerState.START_TOKEN
         code_len = len(self.code)
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
 
-            if self.state == 0:
+            if self.state == LexerState.START_TOKEN:
                 if c.isalpha() or c == '_':
-                    self.move_adv(1)
+                    self.move_adv(LexerState.CONTINUE_TOKEN)
                     continue
 
                 return False
-            if self.state == 1:
+            if self.state == LexerState.CONTINUE_TOKEN:
                 if c.isalpha() or c.isdigit() or c == '_':
                     self.adv()
                     continue
@@ -87,17 +99,17 @@ class Lexer:
 
     def test_number(self):
 
-        self.state = 0
+        self.state = LexerState.START_TOKEN
         code_len = len(self.code)
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
-            if self.state == 0:
+            if self.state == LexerState.START_TOKEN:
                 if c.isdigit():
-                    self.move_adv(1)
+                    self.move_adv(LexerState.CONTINUE_TOKEN)
                     continue
 
                 return False
-            if self.state == 1:
+            if self.state == LexerState.CONTINUE_TOKEN:
                 if c.isdigit():
                     self.adv()
                     continue
@@ -105,16 +117,16 @@ class Lexer:
 
     def test_whitespace(self):
 
-        self.state = 0
+        self.state = LexerState.START_TOKEN
         code_len = len(self.code)
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
-            if self.state == 0:
+            if self.state == LexerState.START_TOKEN:
                 if c in [' ', '\n', '\t']:
-                    self.move_adv(1)
+                    self.move_adv(LexerState.CONTINUE_TOKEN)
                     continue
                 return False
-            if self.state == 1:
+            if self.state == LexerState.CONTINUE_TOKEN:
                 if c in [' ', '\n', '\t']:
                     self.adv()
                     continue
@@ -122,16 +134,16 @@ class Lexer:
                 return True
 
     def test_operator(self):
-        self.state = 0
+        self.state = LexerState.START_TOKEN
         code_len = len(self.code)
         while self.curr_pos < code_len:
             c = self.code[self.curr_pos]
-            if self.state == 0:
+            if self.state == LexerState.START_TOKEN:
                 if c in ['=', '+', '-', '<', '>', '*', '!']:
-                    self.move_adv(1)
+                    self.move_adv(LexerState.CONTINUE_TOKEN)
                     continue
                 return False
-            if self.state == 1:
+            if self.state == LexerState.CONTINUE_TOKEN:
                 if c in ['=']:
                     self.adv()
                     continue
@@ -142,13 +154,11 @@ class Lexer:
 
     def analyze(self, code):
 
-        self.code = remove_comments(code, '#')
-        self.code = remove_comments(self.code, '//')
+        self.code = remove_comments(code, self.comment_mark)
         self.lex_begin = 0
         self.curr_pos = 0
 
         self.curr_line_no = 0
-        self.last_newline = None
 
         tests = [s for s in dir(self) if s.startswith('test_')]
         tokens = []
@@ -170,12 +180,6 @@ class Lexer:
                 self.lex_begin = self.curr_pos
 
                 if token_name == 'whitespace':
-                    # print(token_name,'"%s"' % lexeme)
-                    # if '\n' in lexeme:
-                    #     self.curr_line_no += 1
-                    #     self.last_newline = self.curr_pos
-                    #     s = '"%s"' % self.code[self.curr_pos-5:self.curr_pos+5]
-                    #     print(self.curr_line_no,self.last_newline,s)
                     continue
 
                 token = Token(lexeme, token_name)
