@@ -42,7 +42,7 @@ def preprocess_code(program_code):
     return [parse(line) for line in lines], labels
 
 
-class StackFrame(object):
+class StackFrame:
 
     def __init__(self, sp, ip, mem_start, mem_end=None):
         self.sp = sp
@@ -56,16 +56,13 @@ class StackFrame(object):
 
 class VirtualMachine:
 
-    def __init__(self, debug=False):
+    def __init__(self, stack_size=1000, debug=False):
 
         self.curr_mem_size = 0
-        self.memory = [0] * self.curr_mem_size
-
-        self.INITIAL_STACK_SIZE = 1000
-        self.stack = [0] * self.INITIAL_STACK_SIZE
+        self.memory = []
+        self.stack = [0] * stack_size
 
         self.call_stack = [StackFrame(-1, 0, 0, 0)]
-        self.frame = self.call_stack[-1]
 
         self.ip = self.frame.ip
         self.sp = self.frame.sp
@@ -73,6 +70,12 @@ class VirtualMachine:
         self.is_stopped = False
 
         self.debug = debug
+
+    @property
+    def frame(self):
+        if len(self.call_stack) == 0:
+            raise IndexError('Call stack empty')
+        return self.call_stack[-1]
 
     def nop(self):
         pass
@@ -215,7 +218,6 @@ class VirtualMachine:
 
         sf = StackFrame(self.sp - args_size, self.ip, self.frame.mem_end)
         self.call_stack.append(sf)
-        self.frame = self.call_stack[-1]
         self.jump(arg)
 
     def ret(self):
@@ -223,7 +225,6 @@ class VirtualMachine:
         return_value = self.top()
         sf = self.call_stack.pop()
 
-        self.frame = self.call_stack[-1]
         self.ip = sf.ip
         self.sp = sf.sp
 
@@ -298,16 +299,11 @@ class VirtualMachine:
 
             self.ip_changed = False
 
-    def show(self, arg):
-
-        if arg == 0:
-            return
-
-        if arg == 1:
+    def show(self, verbosity):
+        if verbosity > 0:
             self._show_stack()
 
-        if arg == 2:
-            self._show_stack()
+        if verbosity > 1:
             self._show_memory()
 
     def _show_stack(self):
@@ -321,9 +317,9 @@ class VirtualMachine:
 
         stack_str += ' ' + str(stack_to_show)
         print(stack_str)
-        print('Full stack:', self.stack[:s_end + 1])
+        print('Operations stack:', self.stack[:s_end + 1])
 
-        print('Memory stack:')
+        print('Call stack:')
         for f in self.call_stack[::-1]:
             print('\t ', f)
 
@@ -342,7 +338,7 @@ if __name__ == '__main__':
 
     code = read('./virtual_machine_test_data/factorial.bytecode')
 
-    vm = VirtualMachine(debug=False)
+    vm = VirtualMachine()
 
     vm.run_code(code)
 
