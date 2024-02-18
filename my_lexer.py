@@ -1,42 +1,7 @@
 from preprocessing import remove_comments
 from enum import Enum
 import re
-from dataclasses import dataclass
-
-
-class TokenType(Enum):
-    NUM, ID, \
-        IF, ELSE, WHILE, CONTINUE, BREAK, VAR, FUNC, ENTRY, RETURN, \
-        LEFT_CURL, RIGHT_CURL, LEFT_BRACKET, RIGHT_BRACKET, LEFT_PARENTHESIS, RIGHT_PARENTHESIS, \
-        PLUS, MINUS, MUL, DIV, ASSIGN, \
-        LESS, EQUAL, NOT_EQUAL, GE, LE, \
-        SEMICOLON, COMMA, EOF, WHITESPACE = range(31)
-
-
-@dataclass
-class TokenLocation:
-    line_no: int
-    line_pos: int
-
-    def __str__(self):
-        return f'line:{self.line_no},pos:{self.line_pos}'
-
-
-class Token:
-
-    def __init__(self, lexeme=None, tp=None, value=None):
-        self.lexeme = lexeme
-        self.type = tp
-        self.value = value
-
-        self.location = None
-
-    def set_location(self, line_no, line_pos):
-        self.location = TokenLocation(line_no, line_pos - len(self.lexeme))
-
-    def __str__(self):
-        v = str(self.value) if self.value is not None else 'None'
-        return f'Token(\"{self.lexeme}\",{self.type},{v}, at {self.location})'
+from my_token import TokenType, Token
 
 
 class LexerState(Enum):
@@ -163,8 +128,7 @@ class Lexer:
                 if token_type == TokenType.WHITESPACE:
                     continue
 
-                token = Token(lexeme, token_type)
-                token.set_location(self.curr_line_no, self.curr_pos_in_line)
+                token = Token(lexeme, token_type, self.curr_line_no, self.curr_pos_in_line)
 
                 if token_type == TokenType.NUM:
                     token.value = int(lexeme)

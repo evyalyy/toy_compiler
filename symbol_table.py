@@ -49,10 +49,10 @@ class SymbolFunction(Symbol):
 
 class SymbolTable:
 
-    def __init__(self, p=None):
+    def __init__(self, parent_table=None):
 
         self.table = {}
-        self.parent = p
+        self.parent = parent_table
 
     def find(self, name):
 
@@ -63,6 +63,9 @@ class SymbolTable:
 
             curr_table = curr_table.parent
         return None
+
+    def find_at_current_level(self, name):
+        return self.table.get(name, None)
 
     def add(self, sym):
 

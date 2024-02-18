@@ -2,7 +2,7 @@ from parser import Parser
 
 from symbol_table import Symbol, SymbolTable, SymbolType, SymbolFunction, SymbolId
 
-from my_lexer import TokenType
+from my_token import TokenType
 
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
     ASTWhileStatement, ASTBreakStatement, ASTContinueStatement, ASTReturnStatement, ASTFunctionCall, ASTEntryPoint

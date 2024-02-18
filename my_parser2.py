@@ -1,6 +1,6 @@
 from parser import Parser
 
-from my_lexer import TokenType, Token
+from my_token import TokenType, Token
 
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
     ASTWhileStatement, ASTBreakStatement, ASTContinueStatement, ASTReturnStatement, ASTFunctionCall, ASTEntryPoint

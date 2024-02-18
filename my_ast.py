@@ -1,4 +1,4 @@
-from my_lexer import TokenType
+from my_token import TokenType
 from errors import CompileError, InvalidReturnError, LoopError
 from ast_node import ASTNode
 from ast_visitor import AstVisitor
@@ -27,12 +27,14 @@ class ASTExpr(ASTNode):
         super().__init__(parent)
         self.op = op
 
+    def __str__(self):
+        return f'Expr ({self.children[0]}) {self.op} ({self.children[1]})'
+
     def accept(self, v: AstVisitor):
         v.visit_expr(self)
 
     def emit(self):
 
-        print('Expression', self.op)
         binary_op_map = {TokenType.PLUS: 'add', TokenType.MINUS: 'sub', TokenType.MUL: 'mul', TokenType.DIV: 'div',
                          TokenType.LE: 'lt', TokenType.GE: 'gt', TokenType.EQUAL: 'eq', TokenType.NOT_EQUAL: 'neq'}
 
@@ -51,6 +53,9 @@ class ASTEntryPoint(ASTNode):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def __str__(self):
+        return 'EntryPoint'
+
     def accept(self, v: AstVisitor):
         v.visit_entry_point(self)
 
@@ -63,6 +68,9 @@ class ASTNumber(ASTNode):
         super().__init__(parent)
 
         self.value = value
+
+    def __str__(self):
+        return f'Number({self.value})'
 
     def accept(self, v: AstVisitor):
         v.visit_num(self)
@@ -79,6 +87,9 @@ class ASTId(ASTNode):
         self.symbol = symbol
         self.name = name
 
+    def __str__(self):
+        return f'Id({self.name})'
+
     def accept(self, v: AstVisitor):
         v.visit_id(self)
 
@@ -88,11 +99,14 @@ class ASTId(ASTNode):
 
 
 class ASTDeclaration(ASTNode):
-    def __init__(self, tp_sym, var_sym, parent=None):
+    def __init__(self, tp_sym: ASTId, var_sym: ASTId, parent: ASTNode = None):
         super().__init__(parent)
 
         self.tp = tp_sym
         self.name = var_sym
+
+    def __str__(self):
+        return f'Decl {self.tp}: {self.name}'
 
     def accept(self, v: AstVisitor):
         v.visit_declaration(self)
@@ -206,8 +220,8 @@ class ASTBreakStatement(ASTNode):
 
 
 class ASTCodeBlock(ASTNode):
-    def __init__(self, symtable=None, parent=None):
-        super().__init__(parent)
+    def __init__(self, symtable=None):
+        super().__init__(None)
 
         self.symtable = symtable
 
@@ -226,11 +240,13 @@ class ASTCodeBlock(ASTNode):
             self.curr_mem_idx = parent_code_block.curr_mem_idx
 
         for node in self.children:
+            print(node)
             cmd_list = node.emit()
             out += cmd_list
 
-        out.append('push %d' % self.memory_size)
-        out.append('dealloc')
+        if self.memory_size > 0:
+            out.append('push %d' % self.memory_size)
+            out.append('dealloc')
 
         return out
 
