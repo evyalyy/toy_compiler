@@ -1,22 +1,20 @@
 from my_lexer import Lexer
-from my_parser import Parser, print_ast
+from parser import Parser
+from my_parser import OldParser
 from virtual_machine import VirtualMachine
 
 
 class Compiler:
 
-    def __init__(self, debug=False):
+    def __init__(self, parser: Parser, debug=False):
+        self.parser = parser
         self.debug = debug
 
     def compile(self, code):
         lex = Lexer()
         tokens = lex.analyze(code)
 
-        pr = Parser(tokens)
-        ast = pr.program()
-
-        if self.debug:
-            print_ast(ast)
+        ast = self.parser.parse(tokens)
 
         cmd_list = ast.emit()
 
@@ -66,7 +64,7 @@ if __name__ == '__main__':
     }
     '''
 
-    compiler = Compiler(debug=True)
+    compiler = Compiler(OldParser(), debug=True)
     bytecode = compiler.compile(fibonacci_src)
 
     vm = VirtualMachine()

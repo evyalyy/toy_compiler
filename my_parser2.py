@@ -1,3 +1,5 @@
+from parser import Parser
+
 from my_lexer import TokenType, Token
 
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
@@ -36,26 +38,33 @@ primary_expression -> number | ( expr )
 '''
 
 
-class Parser:
+class NewParser(Parser):
 
-    def __init__(self, tokens=None):
+    def __init__(self, ):
         self.curr_sym = None
         self.idx = -1
 
-        self.tokens = tokens
-        if tokens is None:
-            self.tokens = []
-        self.num_tokens = len(self.tokens)
-
-        self.advance()
+        self.tokens = []
 
         self.root = None
+
+    def _reset(self):
+        self.curr_sym = None
+        self.idx = -1
+
+        self.root = None
+
+    def parse(self, tokens):
+        self.tokens = tokens
+        self._reset()
+        self.advance()
+        return self.program()
 
     def error_(self):
         raise UnexpectedTokenError(self.sym(), self.idx)
 
     def eof(self):
-        return self.idx == self.num_tokens
+        return self.idx == len(self.tokens)
 
     def sym(self) -> Token:
         return self.curr_sym
@@ -448,7 +457,7 @@ if __name__ == '__main__':
     code = read_code('parsing_test_data/function_without_return.prog')
     lex = Lexer()
     tokens = lex.analyze(code)
-    parser = Parser(tokens)
-    ast = parser.program()
+    parser = NewParser()
+    ast = parser.parse(tokens)
     visitor = PrintVisitor()
     ast.accept(visitor)

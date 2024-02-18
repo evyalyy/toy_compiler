@@ -1,11 +1,11 @@
+from parser import Parser
+
 from symbol_table import Symbol, SymbolTable, SymbolType, SymbolFunction, SymbolId
 
 from my_lexer import TokenType
 
 from my_ast import ASTDeclaration, ASTExpr, ASTId, ASTNumber, ASTCodeBlock, ASTFunctionDefinition, ASTIfStatement, \
     ASTWhileStatement, ASTBreakStatement, ASTContinueStatement, ASTReturnStatement, ASTFunctionCall, ASTEntryPoint
-
-from my_ast import print_ast
 
 from errors import UnexpectedTokenError, CompileError
 
@@ -39,7 +39,7 @@ primary_expression -> number | ( expr )
 '''
 
 
-class Parser:
+class OldParser(Parser):
 
     def __init__(self, tokens=None):
         self.curr_sym = None
@@ -59,6 +59,26 @@ class Parser:
         self.symtable = SymbolTable()
 
         self.init_types()
+
+    def _reset(self):
+        self.curr_sym = None
+        self.idx = -1
+
+        self.num_tokens = len(self.tokens)
+
+        self.curr_label_id = 0
+
+        self.root = None
+
+        self.symtable = SymbolTable()
+
+        self.init_types()
+
+    def parse(self, tokens):
+        self.tokens = tokens
+        self._reset()
+        self.advance()
+        return self.program()
 
     def init_types(self):
 
