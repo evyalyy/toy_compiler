@@ -2,8 +2,31 @@ from my_lexer import Lexer
 from my_parser import Parser, print_ast
 from virtual_machine import VirtualMachine
 
+
+class Compiler:
+
+    def __init__(self, debug=False):
+        self.debug = debug
+
+    def compile(self, code):
+        lex = Lexer()
+        tokens = lex.analyze(code)
+
+        pr = Parser(tokens)
+        ast = pr.program()
+
+        if self.debug:
+            print_ast(ast)
+
+        cmd_list = ast.emit()
+
+        code = ';\n'.join(cmd_list) + ';\nhalt;'
+        code = code.replace(':;', ':')
+        return code
+
+
 if __name__ == '__main__':
-    code = '''
+    fibonacci_src = '''
     {
        func int foo(int x){
             var int tmp = 0;
@@ -38,21 +61,9 @@ if __name__ == '__main__':
     }
     '''
 
-    lex = Lexer()
-    tokens = lex.analyze(code)
-
-    print('Parsing')
-    pr = Parser(tokens)
-    ast = pr.program()
-
-    print_ast(ast)
-
-    cmd_list = ast.emit()
-
-    code = ';\n'.join(cmd_list) + ';\nhalt;'
-    code = code.replace(':;', ':')
-    print(code)
+    compiler = Compiler(debug=True)
+    bytecode = compiler.compile(fibonacci_src)
 
     vm = VirtualMachine()
-    vm.run_code(code)
+    vm.run_code(bytecode)
     vm.show(2)
